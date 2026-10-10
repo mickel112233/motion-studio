@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createAudioExportSession } from './audio-export';
+import { createAudioExportSession, normalizeAudioFades } from './audio-export';
 import type { RenderLayer } from './compositor';
 
 const audioLayer = (overrides: Partial<RenderLayer> = {}): RenderLayer => ({
@@ -20,5 +20,13 @@ describe('audio export preparation', () => {
       audioLayer({ volume: 0 }),
       audioLayer({ assetUrl: undefined })
     ])).resolves.toBeUndefined();
+  });
+});
+
+describe('audio fade envelope', () => {
+  it('clamps fade durations and proportionally fits overlapping fades', () => {
+    expect(normalizeAudioFades(10, 2, 3)).toEqual({ fadeIn: 2, fadeOut: 3 });
+    expect(normalizeAudioFades(4, 4, 4)).toEqual({ fadeIn: 2, fadeOut: 2 });
+    expect(normalizeAudioFades(2, -1, 8)).toEqual({ fadeIn: 0, fadeOut: 2 });
   });
 });
