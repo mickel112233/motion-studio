@@ -118,8 +118,8 @@ export async function drawComposition(canvas: HTMLCanvasElement, project: Render
     if (layer.mask?.type === 'rectangle') { const inset = layer.mask.inset / 100; ctx.beginPath(); ctx.rect(-project.width * (0.45 - inset), -project.height * (0.4 - inset), project.width * (0.9 - 2 * inset), project.height * (0.8 - 2 * inset)); ctx.clip(); }
     if (layer.mask?.type === 'ellipse') { const inset = layer.mask.inset / 100; ctx.beginPath(); ctx.ellipse(0, 0, project.width * (0.45 - inset), project.height * (0.4 - inset), 0, 0, Math.PI * 2); ctx.clip(); }
     if (presentation.clipPath) {
-      const leftWipe = /^inset\\(0 ([\\d.]+)% 0 0\\)$/.exec(presentation.clipPath);
-      const rightWipe = /^inset\\(0 0 0 ([\\d.]+)%\\)$/.exec(presentation.clipPath);
+      const leftWipe = /^inset\(0 ([\d.]+)% 0 0\)$/.exec(presentation.clipPath);
+      const rightWipe = /^inset\(0 0 0 ([\d.]+)%\)$/.exec(presentation.clipPath);
       if (leftWipe || rightWipe) {
         const hidden = Number((leftWipe ?? rightWipe)![1]) / 100;
         ctx.beginPath();
