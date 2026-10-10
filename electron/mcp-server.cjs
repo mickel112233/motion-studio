@@ -65,6 +65,7 @@ const tools = [
  { name:'layers.list', description:'List layers and their editable properties; optionally include keyframes.', inputSchema:{type:'object',properties:{includeKeyframes:{type:'boolean'}},additionalProperties:false} },
  { name:'layers.create', description:'Create a layer. Writes the configured project file.', inputSchema:{type:'object',required:['kind','name'],properties:{kind:{type:'string',enum:['text','shape','image','video','audio']},name:{type:'string',minLength:1,maxLength:160},text:{type:'string',maxLength:10000},color:{type:'string',pattern:'^#[0-9a-fA-F]{6}$'},start:{type:'number',minimum:0},duration:{type:'number',exclusiveMinimum:0},x:{type:'number'},y:{type:'number'}},additionalProperties:false} },
  { name:'layers.update', description:'Update allowed properties of an existing layer. Locked layers require unlockFirst=true.', inputSchema:{type:'object',required:['id','patch'],properties:{id:{type:'string'},unlockFirst:{type:'boolean'},patch:{type:'object',properties:{name:{type:'string',maxLength:160},color:{type:'string',pattern:'^#[0-9a-fA-F]{6}$'},visible:{type:'boolean'},locked:{type:'boolean'},start:{type:'number',minimum:0},duration:{type:'number',exclusiveMinimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0,maximum:1000},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100},text:{type:'string',maxLength:10000}},additionalProperties:false}},additionalProperties:false} },
+ { name:'layers.set_effects', description:'Replace the editable effect stack on an unlocked layer.', inputSchema:{type:'object',required:['id','effects'],properties:{id:{type:'string'},effects:{type:'array',maxItems:64,items:{type:'object',required:['type','value'],properties:{id:{type:'string',maxLength:160},type:{type:'string',enum:['blur','brightness','contrast','saturate','grayscale','sepia','hue-rotate','drop-shadow']},enabled:{type:'boolean'},value:{type:'number',minimum:0}},additionalProperties:false}}},additionalProperties:false} },
  { name:'layers.delete', description:'Destructively delete one layer; requires explicit confirm=true and layer must be unlocked.', inputSchema:{type:'object',required:['id','confirm'],properties:{id:{type:'string'},confirm:{type:'boolean',const:true}},additionalProperties:false} },
  { name:'layers.add_keyframe', description:'Add or replace an animated transform keyframe, including its outgoing easing curve.', inputSchema:{type:'object',required:['id','time'],properties:{id:{type:'string'},time:{type:'number',minimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100},easing:{type:'string',enum:['linear','ease-in','ease-out','ease-in-out','hold']}},additionalProperties:false} },
  { name:'layers.duplicate', description:'Duplicate an existing unlocked or locked layer with a new ID and optional offset.', inputSchema:{type:'object',required:['id'],properties:{id:{type:'string'},name:{type:'string',maxLength:160},offsetX:{type:'number'},offsetY:{type:'number'},offsetTime:{type:'number',minimum:0}},additionalProperties:false} },
@@ -108,6 +109,21 @@ async function callTool(name, a) {
       }
       if (a.unlockFirst && a.patch.locked === undefined) l.locked = false;
       changed = true; value = l; break;
+    }
+    case 'layers.set_effects': {
+      const l = layer(p,str(a.id,'id',100)); fail(!l.locked, 'Unlock layer before editing effects');
+      fail(Array.isArray(a.effects) && a.effects.length <= 64, 'effects must be an array of at most 64 items');
+      const limits = { blur:40, brightness:300, contrast:300, saturate:300, grayscale:100, sepia:100, 'hue-rotate':360, 'drop-shadow':50 };
+      const effectIds = new Set();
+      l.effects = a.effects.map(e => {
+        fail(e && typeof e === 'object' && !Array.isArray(e), 'Invalid effect entry');
+        fail(Object.hasOwn(limits,e.type), 'Unsupported effect type: ' + e.type);
+        const value = num(e.value,'effect value',0,limits[e.type]);
+        const id = e.id === undefined ? 'effect_' + crypto.randomBytes(5).toString('hex') : str(e.id,'effect id',160);
+        fail(!effectIds.has(id), 'Duplicate effect ID: ' + id); effectIds.add(id);
+        return { id, type:e.type, enabled:e.enabled === undefined ? true : (fail(typeof e.enabled === 'boolean','enabled must be boolean'),e.enabled), value };
+      });
+      changed = true; value = l.effects; break;
     }
     case 'layers.delete': {
       fail(a.confirm === true, 'Deletion requires confirm=true'); const l = layer(p,str(a.id,'id',100)); fail(!l.locked, 'Unlock layer before deleting');
