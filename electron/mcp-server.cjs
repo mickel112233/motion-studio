@@ -20,6 +20,7 @@ const str = (v, n, max = 160) => { fail(typeof v === 'string' && v.trim().length
 const emptyProject = () => ({ schemaVersion: 1, name: 'Untitled Composition', width: 1920, height: 1080, fps: 30, duration: 12, layers: [] });
 function validate(p) {
   fail(p && typeof p === 'object' && !Array.isArray(p), 'Project must be an object');
+  fail(p.schemaVersion === undefined || p.schemaVersion === 1, 'Unsupported project schema version: ' + p.schemaVersion);
   str(p.name, 'project name', 200); num(p.width, 'width', 16, 16384); num(p.height, 'height', 16, 16384);
   num(p.fps, 'fps', 1, 240); num(p.duration, 'duration', .1, 86400);
   fail(Array.isArray(p.layers) && p.layers.length <= 10000, 'layers must be an array of at most 10,000 items');
@@ -60,7 +61,7 @@ async function read() {
   let b; try { b = await fs.readFile(file); } catch (e) { if (e.code === 'ENOENT') return emptyProject(); throw e; }
   fail(b.length <= maxBytes, 'Project exceeds 20 MB safety limit');
   let p; try { p = JSON.parse(b.toString('utf8')); } catch { throw new Error('Project file is invalid JSON'); }
-  validate(p); return p;
+  validate(p); return p.schemaVersion === undefined ? { ...p, schemaVersion: 1 } : p;
 }
 async function write(p) {
   validate(p); const data = JSON.stringify({ ...p, schemaVersion: 1, updatedAt: new Date().toISOString() }, null, 2) + '\n';
