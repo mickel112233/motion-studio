@@ -97,3 +97,8 @@
 .plan-invalid{display:flex;flex-direction:column;gap:6px;color:#f0b4b4;border-color:#6a3838}
 .plan-invalid span{color:#cbaaaa}
 .ai-plan-review .note-text{margin:0}
+
+.grade-row{gap:8px}
+.grade-row label{min-width:70px}
+.grade-row input[type=range],.property-row input[type=range]{min-width:0;flex:1;accent-color:#a78bfa}
+.grade-row>span,.property-row>span{min-width:32px;text-align:right;color:#bdb6cf;font-size:10px;font-variant-numeric:tabular-nums}
