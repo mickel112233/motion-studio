@@ -12,6 +12,12 @@ const validProject = () => ({
 
 describe('project file validation', () => {
   it('accepts a valid project schema', () => expect(isValidProject(validProject())).toBe(true));
+  it('accepts legacy unversioned projects but rejects unknown future schema versions', () => {
+    const legacy = validProject() as ReturnType<typeof validProject> & { schemaVersion?: number };
+    expect(isValidProject(legacy)).toBe(true);
+    expect(isValidProject({ ...validProject(), schemaVersion: 2 })).toBe(false);
+    expect(isValidProject({ ...validProject(), schemaVersion: 0 })).toBe(false);
+  });
   it('rejects duplicate layer IDs', () => {
     const p = validProject(); p.layers.push({ ...p.layers[0] });
     expect(isValidProject(p)).toBe(false);
