@@ -272,11 +272,20 @@ export default function App() {
       });
       recorder.start(250);
       audioSession?.start();
-      for (let frame = 0; frame < frameCount; frame++) {
+      const exportStartedAt = performance.now();
+      let lastRenderedFrame = 0;
+      while ((performance.now() - exportStartedAt) < project.duration * 1000) {
         if (exportCancelRef.current) break;
-        if (frame > 0) await drawComposition(canvas, project, frame / fps);
-        setExportProgress(Math.round(((frame + 1) / frameCount) * 100));
-        await new Promise(resolve => window.setTimeout(resolve, 1000 / fps));
+        const elapsed = (performance.now() - exportStartedAt) / 1000;
+        const frame = Math.min(frameCount - 1, Math.floor(elapsed * fps));
+        if (frame !== lastRenderedFrame) {
+          await drawComposition(canvas, project, frame / fps);
+          lastRenderedFrame = frame;
+          setExportProgress(Math.round(((frame + 1) / frameCount) * 100));
+        }
+        const afterRender = (performance.now() - exportStartedAt) / 1000;
+        const untilNextFrame = Math.max(1, ((Math.min(frame + 1, frameCount)) / fps - afterRender) * 1000);
+        await new Promise(resolve => window.setTimeout(resolve, Math.min(untilNextFrame, 50)));
       }
       const wasCancelled = exportCancelRef.current;
       recorder.stop();
@@ -287,7 +296,7 @@ export default function App() {
       a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.webm`;
       a.href = url; a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 5000);
-      setStatus(`Video exported as WebM (${fps} FPS)`);
+      setStatus(`Video exported as WebM (${fps} FPS${audioSession ? ', audio mixed' : ''})`);
     } catch (error) {
       if (recorder && recorder.state !== 'inactive') recorder.stop();
       setStatus(error instanceof Error ? 'Video export failed: ' + error.message : 'Video export failed');
