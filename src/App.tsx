@@ -196,7 +196,7 @@ export default function App() {
     if (!api) return;
     let cancelled = false;
     void api.getRecoveryProject().then(result => {
-      if (cancelled || userProjectActionRef.current || !result.available || !result.data) return;
+      if (cancelled || userProjectActionRef.current || latestProjectRef.current !== initialProject || !result.available || !result.data) return;
       if (!isValidProject(result.data)) { void api.discardRecoveryProject(); return; }
       const when = result.modifiedAt ? new Date(result.modifiedAt).toLocaleString() : 'an earlier session';
       if (window.confirm(`A recovery snapshot from ${when} was found. Restore it? Choose Cancel to discard the recovery snapshot.`)) {
