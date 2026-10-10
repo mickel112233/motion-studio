@@ -119,7 +119,6 @@ async function checkExternalVersion(filePath) {
   if (!lastSavedHash || hash === lastSavedHash) return null;
   const data = validateProject(JSON.parse(raw.toString('utf8')));
   lastSavedHash = hash;
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('project:external-change', { filePath, data });
   return data;
 }
 
