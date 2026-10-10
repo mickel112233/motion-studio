@@ -126,10 +126,45 @@ export default function App() {
     const layer = { ...initialLayer(kind, file.name, project.layers.length), assetUrl: url };
     setProject(p => ({ ...p, layers: [...p.layers, layer] })); setSelected(layer.id); setStatus('Imported ' + file.name);
   };
-  const exportFrame = () => {
+  const exportFrame = async () => {
     const canvas = document.querySelector<HTMLCanvasElement>('#composition-canvas');
     if (!canvas) return;
-    const a = document.createElement('a'); a.download = 'motion-studio-frame.png'; a.href = canvas.toDataURL('image/png'); a.click(); setStatus('Frame exported as PNG');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { setStatus('Could not create export canvas'); return; }
+    ctx.clearRect(0, 0, project.width, project.height);
+    const bg = ctx.createLinearGradient(0, 0, project.width, project.height);
+    bg.addColorStop(0, '#151521'); bg.addColorStop(.55, '#24213a'); bg.addColorStop(1, '#151521');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, project.width, project.height);
+    const glow = ctx.createRadialGradient(project.width*.78, project.height*.28, 0, project.width*.78, project.height*.28, project.width*.42);
+    glow.addColorStop(0, '#3b2c61'); glow.addColorStop(1, '#3b2c6100');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, project.width, project.height);
+    for (const layer of visibleLayers) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, layer.opacity / 100));
+      ctx.translate(project.width/2 + layer.x, project.height/2 + layer.y);
+      ctx.rotate(layer.rotation * Math.PI / 180);
+      ctx.scale(layer.scale, layer.scale);
+      if (layer.kind === 'text') {
+        ctx.fillStyle = '#f4f2ff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = '700 106px DM Sans, sans-serif';
+        const lines = (layer.text ?? layer.name).split('\\n');
+        lines.forEach((line, i) => ctx.fillText(line, 0, (i-(lines.length-1)/2)*120, project.width*.8));
+      } else if (layer.kind === 'shape') {
+        ctx.fillStyle = layer.color; ctx.shadowColor = layer.color + '88'; ctx.shadowBlur = 35;
+        ctx.beginPath(); ctx.roundRect(-135, -135, 270, 270, 35); ctx.fill();
+      } else if ((layer.kind === 'image' || layer.kind === 'video') && layer.assetUrl) {
+        try {
+          const media = document.querySelector<HTMLImageElement | HTMLVideoElement>(layer.kind === 'image' ? `img[src="${CSS.escape(layer.assetUrl)}"]` : `video[src="${CSS.escape(layer.assetUrl)}"]`);
+          if (media && (media instanceof HTMLVideoElement ? media.readyState >= 2 : media.complete)) {
+            const mw = media instanceof HTMLVideoElement ? media.videoWidth : media.naturalWidth;
+            const mh = media instanceof HTMLVideoElement ? media.videoHeight : media.naturalHeight;
+            if (mw && mh) { const k = Math.min(project.width*.65/mw, project.height*.7/mh); ctx.drawImage(media, -mw*k/2, -mh*k/2, mw*k, mh*k); }
+          }
+        } catch { /* Skip media that cannot be decoded by the current renderer. */ }
+      }
+      ctx.restore();
+    }
+    const a = document.createElement('a'); a.download = 'motion-studio-frame.png'; a.href = canvas.toDataURL('image/png'); a.click(); setStatus('Composition frame exported as PNG');
   };
   const visibleLayers = useMemo(() => project.layers.filter(l => l.visible && currentTime >= l.start && currentTime <= l.start + l.duration), [project.layers, currentTime]);
   const scalePreview = Math.min(1, 760 / project.width, 430 / project.height) * zoom;
