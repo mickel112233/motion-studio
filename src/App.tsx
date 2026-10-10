@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { evaluateTransform, isLayerActive, type Easing } from './animation';
 import {
   Activity, AlignCenter, Aperture, AudioLines, Bot, Box, ChevronDown, ChevronRight,
   CircleHelp, Clapperboard, Clock3, Command, Copy, Download, Eye, EyeOff,
@@ -13,7 +14,7 @@ type Layer = {
   id: string; name: string; kind: LayerKind; color: string; visible: boolean;
   locked: boolean; start: number; duration: number; x: number; y: number;
   scale: number; rotation: number; opacity: number; text?: string; assetUrl?: string;
-  keyframes: { time: number; x: number; y: number; scale: number; rotation: number; opacity: number }[];
+  keyframes: { time: number; x: number; y: number; scale: number; rotation: number; opacity: number; easing?: Easing }[];
 };
 type Project = { name: string; width: number; height: number; fps: number; duration: number; layers: Layer[] };
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -27,12 +28,12 @@ const initialLayer = (kind: LayerKind, name: string, index: number): Layer => ({
 const initialProject: Project = {
   name: 'Untitled Composition', width: 1920, height: 1080, fps: 30, duration: 12,
   layers: [
-    { ...initialLayer('shape', 'Accent shape', 0), x: 250, y: 40, scale: 1.15, duration: 8 },
+    { ...initialLayer('shape', 'Accent shape', 0), x: 250, y: 40, scale: 1.15, duration: 8, keyframes: [{ time: 0, x: 250, y: 40, scale: 1.15, rotation: 0, opacity: 100 }] },
     { ...initialLayer('text', 'Title · Main', 1), x: 0, y: 0, duration: 8 },
-    { ...initialLayer('text', 'Subtitle', 2), text: 'MOTION, MADE YOURS', x: 0, y: 90, scale: .48, duration: 8 }
+    { ...initialLayer('text', 'Subtitle', 2), text: 'MOTION, MADE YOURS', x: 0, y: 90, scale: .48, duration: 8, keyframes: [{ time: 0, x: 0, y: 90, scale: .48, rotation: 0, opacity: 100 }] }
   ]
 };
-const fmt = (t: number) => { const m = Math.floor(t / 60); const s = Math.floor(t % 60); const f = Math.floor((t % 1) * 30); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`; };
+const fmt = (t: number, fps = 30) => { const safe = Math.max(0, t); const m = Math.floor(safe / 60); const s = Math.floor(safe % 60); const f = Math.floor((safe % 1) * fps); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`; };
 
 export default function App() {
   const [project, setProject] = useState<Project>(initialProject);
@@ -147,7 +148,7 @@ export default function App() {
       if (layer.kind === 'text') {
         ctx.fillStyle = '#f4f2ff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.font = '700 106px DM Sans, sans-serif';
-        const lines = (layer.text ?? layer.name).split('\\n');
+        const lines = (layer.text ?? layer.name).split('\n');
         lines.forEach((line, i) => ctx.fillText(line, 0, (i-(lines.length-1)/2)*120, project.width*.8));
       } else if (layer.kind === 'shape') {
         ctx.fillStyle = layer.color; ctx.shadowColor = layer.color + '88'; ctx.shadowBlur = 35;
@@ -166,7 +167,7 @@ export default function App() {
     }
     const a = document.createElement('a'); a.download = 'motion-studio-frame.png'; a.href = canvas.toDataURL('image/png'); a.click(); setStatus('Composition frame exported as PNG');
   };
-  const visibleLayers = useMemo(() => project.layers.filter(l => l.visible && currentTime >= l.start && currentTime <= l.start + l.duration), [project.layers, currentTime]);
+  const visibleLayers = useMemo(() => project.layers.filter(l => l.visible && isLayerActive(l, currentTime)).map(l => ({ ...l, ...evaluateTransform(l, currentTime) })), [project.layers, currentTime]);
   const scalePreview = Math.min(1, 760 / project.width, 430 / project.height) * zoom;
   const timeX = (t: number) => `${(t / project.duration) * 100}%`;
 
@@ -218,7 +219,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="transport"><div className="transport-left"><button className="icon-btn" title="Jump to start" onClick={() => setCurrentTime(0)}><SkipBackIcon/></button><button className="play-btn" onClick={() => setPlaying(v => !v)}>{playing ? <Pause size={16} fill="currentColor"/> : <Play size={16} fill="currentColor"/>}</button><button className="icon-btn" title="Jump to end" onClick={() => setCurrentTime(project.duration)}><SkipForwardIcon/></button><span className="timecode">{fmt(currentTime)}</span><span className="fps-label">{project.fps} FPS</span></div><div className="transport-right"><span className="muted-label">WORK AREA</span><span className="workarea-value">00:00 — {fmt(project.duration)}</span></div></div>
+          <div className="transport"><div className="transport-left"><button className="icon-btn" title="Jump to start" onClick={() => setCurrentTime(0)}><SkipBackIcon/></button><button className="play-btn" onClick={() => setPlaying(v => !v)}>{playing ? <Pause size={16} fill="currentColor"/> : <Play size={16} fill="currentColor"/>}</button><button className="icon-btn" title="Jump to end" onClick={() => setCurrentTime(project.duration)}><SkipForwardIcon/></button><span className="timecode">{fmt(currentTime, project.fps)}</span><span className="fps-label">{project.fps} FPS</span></div><div className="transport-right"><span className="muted-label">WORK AREA</span><span className="workarea-value">00:00 — {fmt(project.duration, project.fps)}</span></div></div>
           <div className="scrub-track"><input aria-label="Current time" type="range" min="0" max={project.duration} step={1/project.fps} value={currentTime} onChange={e => setCurrentTime(Number(e.target.value))}/></div>
         </section>
 
@@ -227,7 +228,7 @@ export default function App() {
           <div className="timeline-body">
             <div className="layer-column"><div className="layer-column-head"><span>LAYERS</span><span>V</span><span>L</span></div>{[...project.layers].reverse().map(layer => <div key={layer.id} className={selected === layer.id ? 'layer-row selected-layer' : 'layer-row'} onClick={() => setSelected(layer.id)}><span className="layer-color" style={{background:layer.color}}/><LayerIcon kind={layer.kind}/><span className="layer-name">{layer.name}</span><button className="layer-mini" title={layer.visible?'Hide layer':'Show layer'} onClick={e => {e.stopPropagation();updateLayer(layer.id,{visible:!layer.visible});}}>{layer.visible?<Eye size={13}/>:<EyeOff size={13}/>}</button><button className="layer-mini" title={layer.locked?'Unlock':'Lock'} onClick={e => {e.stopPropagation();updateLayer(layer.id,{locked:!layer.locked});}}><Square size={12} fill={layer.locked?'currentColor':'none'}/></button></div>)}</div>
             <div className="tracks-wrap"><div className="ruler">{Array.from({length:Math.ceil(project.duration)+1},(_,i)=><div key={i} className="ruler-tick" style={{left:timeX(i)}}><span>{i===0?'00':String(i).padStart(2,'0')}s</span></div>)}</div>
-              {activeTab === 'timeline' ? <div className="tracks">{[...project.layers].reverse().map(layer => <div className="track" key={layer.id} onClick={() => setSelected(layer.id)}><div className={selected===layer.id?'clip selected-clip':'clip'} style={{left:timeX(layer.start),width:timeX(Math.min(layer.duration,project.duration-layer.start)),background:layer.color+'30',borderColor:layer.color}}><span>{layer.name}</span>{layer.keyframes.map(k => <span key={k.time} className="keyframe" style={{left:timeX(k.time).replace('%','')}} title={`Keyframe ${k.time}s`}/> )}</div></div>)}
+              {activeTab === 'timeline' ? <div className="tracks">{[...project.layers].reverse().map(layer => <div className="track" key={layer.id} onClick={() => setSelected(layer.id)}><div className={selected===layer.id?'clip selected-clip':'clip'} style={{left:timeX(layer.start),width:timeX(Math.min(layer.duration,project.duration-layer.start)),background:layer.color+'30',borderColor:layer.color}}><span>{layer.name}</span>{layer.keyframes.map(k => <span key={k.time} className="keyframe" style={{left:`${Math.max(0,Math.min(100,((k.time-layer.start)/Math.max(layer.duration,.001))*100))}%`}} title={`Keyframe ${k.time}s · ${k.easing || 'linear'}`}/> )}</div></div>)}
                 <div className="playhead" style={{left:timeX(currentTime)}}><div className="playhead-cap"/><div className="playhead-line"/></div></div> : <div className="graph-empty"><Activity size={22}/><strong>Animation curves</strong><span>Select a property and add keyframes to edit easing curves.</span><button className="secondary-btn" onClick={() => { if(selectedLayer) updateLayer(selectedLayer.id,{keyframes:[...selectedLayer.keyframes,{time:Math.min(project.duration,currentTime+1),x:selectedLayer.x+80,y:selectedLayer.y,scale:selectedLayer.scale,rotation:selectedLayer.rotation,opacity:selectedLayer.opacity}]}); }}>Add keyframe</button></div>}
             </div>
           </div>
