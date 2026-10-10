@@ -51,7 +51,8 @@ export function parseAiEditPlan(raw: string): PlanValidation {
         if (key === 'mask' && (!isRecord(v) || !['none','rectangle','ellipse'].includes(String(v.type)) || !finite(v.inset) || v.inset < 0 || v.inset > 45)) errors.push(`${label}: mask must be none, rectangle or ellipse with inset from 0 to 45.`);
         if (key === 'colorGrade') {
           const gradeLimits: Record<string, [number, number]> = { exposure: [-4,4], contrast: [0,200], saturation: [0,200], temperature: [-100,100], tint: [-100,100] };
-          if (!isRecord(v) || Object.entries(gradeLimits).some(([field, [min,max]]) => !finite(v[field]) || (v[field] as number) < min || (v[field] as number) > max)) errors.push(`${label}: colorGrade contains missing or out-of-range values.`);
+          const grade = isRecord(v) ? v : undefined;
+          if (!grade || Object.entries(gradeLimits).some(([field, [min,max]]) => !finite(grade[field]) || (grade[field] as number) < min || (grade[field] as number) > max)) errors.push(`${label}: colorGrade contains missing or out-of-range values.`);
         }
       }
       const p = op.patch as Record<string, unknown>;
