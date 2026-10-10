@@ -8,7 +8,7 @@ Motion Studio includes a local Model Context Protocol (MCP) server for compatibl
 - `project.validate` — check core project structure and unique layer IDs.
 - `layers.list` — inspect layers and optionally their keyframes.
 - `layers.create` — create text, shape, image, video or audio layers.
-- `layers.update` — edit whitelisted layer properties; locked layers require explicit unlocking.
+- `layers.update` — edit whitelisted layer properties, including audio volume/mute; locked layers require explicit unlocking.
 - `layers.delete` — destructive action requiring `confirm: true`; locked layers cannot be deleted.
 - `layers.add_keyframe` — add or replace a transform keyframe, including linear, ease-in, ease-out, ease-in-out or hold easing.
 - `layers.duplicate` — duplicate a layer with optional position/time offsets.
