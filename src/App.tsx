@@ -227,6 +227,7 @@ export default function App() {
         if (result.conflict) {
           conflictRevisionRef.current += 1;
           if (result.data && isValidProject(result.data) && window.confirm('The saved project changed outside Motion Studio. Reload the external version and discard your unsaved edits? Choose Cancel to keep your local version and use Save As.')) {
+            void api.acceptExternalProject().catch(() => {});
             setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setHistory([]); setFuture([]); setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Synced external agent changes');
           } else {
             setExternalConflict(true); externalConflictRef.current = true; setStatus('External edits detected — resolve conflict before saving');
@@ -256,6 +257,7 @@ export default function App() {
         setStatus('External edits detected — resolve conflict before saving');
         return;
       }
+      void window.motionStudio?.acceptExternalProject().catch(() => {});
       setProject(payload.data); setSelected(payload.data.layers[0]?.id ?? ''); setCurrentTime(0);
       setHistory([]); setFuture([]); setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Synced external agent changes');
     });
