@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evaluateTransform, isLayerActive, type Easing } from './animation';
 import { cssEffectFilter, drawComposition } from './compositor';
+import { createAudioExportSession, type AudioExportSession } from './audio-export';
 import { isValidProject } from './project-validation';
 import {
   Activity, AlignCenter, Aperture, AudioLines, Bot, Box, ChevronDown, ChevronRight,
@@ -251,9 +252,13 @@ export default function App() {
     setExportingVideo(true); setExportProgress(0); setPlaying(false); setStatus('Preparing video export…');
     let stream: MediaStream | undefined;
     let recorder: MediaRecorder | undefined;
+    let audioSession: AudioExportSession | undefined;
     try {
       await drawComposition(canvas, project, 0);
-      stream = canvas.captureStream(fps);
+      const canvasStream = canvas.captureStream(fps);
+      stream = canvasStream;
+      audioSession = await createAudioExportSession(project.layers);
+      if (audioSession) stream = new MediaStream([...canvasStream.getVideoTracks(), ...audioSession.stream.getAudioTracks()]);
       const mimeType = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(type => MediaRecorder.isTypeSupported(type));
       recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       const recorded = new Promise<Blob>((resolve, reject) => {
@@ -266,6 +271,7 @@ export default function App() {
         };
       });
       recorder.start(250);
+      audioSession?.start();
       for (let frame = 0; frame < frameCount; frame++) {
         if (exportCancelRef.current) break;
         if (frame > 0) await drawComposition(canvas, project, frame / fps);
@@ -287,6 +293,7 @@ export default function App() {
       setStatus(error instanceof Error ? 'Video export failed: ' + error.message : 'Video export failed');
     } finally {
       stream?.getTracks().forEach(track => track.stop());
+      await audioSession?.dispose();
       setExportingVideo(false);
     }
   };
