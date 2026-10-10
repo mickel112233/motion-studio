@@ -446,7 +446,7 @@ app.on('before-quit', () => {
   const session = ffmpegExportSession;
   ffmpegExportSession = null;
   if (session) {
-    void session.exporter.cancel().finally(() => fs.rm(session.outputPath, { force: true }).catch(() => {}));
+    void session.exporter.cancel().catch(() => {}).finally(() => fs.rm(session.outputPath, { force: true }).catch(() => {}));
   }
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
