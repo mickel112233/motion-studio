@@ -2,11 +2,18 @@
 
 **Motion Studio** is an independent, local-first motion-graphics editor project focused on a professional timeline workflow and agent-friendly project editing. It is not affiliated with Adobe.
 
+## AI provider setup
+
+Open the **Agents** inspector tab, add a provider, choose its API type, set the base URL and exact model ID, and enter the key. Use **Test** to verify access, then choose a saved provider and request an edit plan. OpenAI-compatible endpoints use `/models` and `/chat/completions`; Anthropic uses `/v1/models` and `/v1/messages`; Gemini uses its native model endpoints. The AI assistant returns suggestions only; it does not yet apply edits automatically. Provider usage may incur charges. HTTPS is required except for localhost endpoints.
+
 ## Current foundation
 
-**Version 0.5.0** adds guarded project-schema versioning and safer external-agent edit conflict handling.
+**Version 0.6.0** adds encrypted multi-provider AI API connections and an AI editing assistant, alongside guarded project-schema versioning and safer external-agent edit conflict handling.
 
 - Electron desktop shell with context isolation, sandboxed renderer and a narrow preload bridge.
+- Multiple saved AI API profiles: OpenAI-compatible endpoints (including compatible gateways/local endpoints), Anthropic Messages API, and Google Gemini API.
+- API keys are encrypted with Electron `safeStorage` in the desktop main process; the renderer receives only provider metadata and masked key status.
+- Provider connection tests and an AI editing assistant that returns guidance based on the current composition summary.
 - React + TypeScript + Vite editor with composition preview, layers, timeline, playhead, inspector and keyboard shortcuts.
 - Frame-snapped timeline scrubbing, clip movement and trim-start/trim-end handles.
 - Text, shape and imported media layers; editable transforms, timing, color, composition dimensions and frame rate.
