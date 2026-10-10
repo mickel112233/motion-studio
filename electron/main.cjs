@@ -120,32 +120,29 @@ async function requestProvider(provider, prompt, testOnly = false) {
   try {
     let response, body;
     if (provider.kind === 'openai-compatible') {
-      const endpoint = base + '/models';
-      if (testOnly) response = await fetch(endpoint, { headers: { Authorization: 'Bearer ' + key }, signal: controller.signal });
-      else response = await fetch(base + '/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: provider.model, messages: [{ role: 'system', content: 'You are Motion Studio’s editing assistant. Give concrete video-editing and motion-design advice. Never claim to have changed the project.' }, { role: 'user', content: prompt }], temperature: 0.4 }), signal: controller.signal });
+      const endpoint = base + '/chat/completions';
+      response = await fetch(endpoint, { method: 'POST', redirect: 'error', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: provider.model, messages: testOnly ? [{ role: 'user', content: 'Reply with OK.' }] : [{ role: 'system', content: 'You are Motion Studio’s editing assistant. Give concrete video-editing and motion-design advice. Never claim to have changed the project.' }, { role: 'user', content: prompt }], max_tokens: testOnly ? 8 : 1200, temperature: 0.4 }), signal: controller.signal });
       body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error?.message || body.message || ('Provider returned HTTP ' + response.status));
-      if (testOnly) return { ok: true, message: 'Connected. Model catalogue endpoint responded.' };
+      if (testOnly) return { ok: true, message: 'Connected. The selected model completed a test request.' };
       const output = body.choices?.[0]?.message?.content;
       if (typeof output !== 'string' || !output.trim()) throw new Error('Provider response did not contain assistant text');
       return { ok: true, text: output };
     }
     if (provider.kind === 'anthropic') {
-      if (testOnly) response = await fetch(base + '/v1/models', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, signal: controller.signal });
-      else response = await fetch(base + '/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify({ model: provider.model, max_tokens: 1200, system: 'You are Motion Studio’s editing assistant. Give concrete video-editing and motion-design advice. Never claim to have changed the project.', messages: [{ role: 'user', content: prompt }] }), signal: controller.signal });
+      response = await fetch(base + '/v1/messages', { method: 'POST', redirect: 'error', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify({ model: provider.model, max_tokens: testOnly ? 8 : 1200, system: testOnly ? 'Reply with OK.' : 'You are Motion Studio’s editing assistant. Give concrete video-editing and motion-design advice. Never claim to have changed the project.', messages: [{ role: 'user', content: testOnly ? 'Reply with OK.' : prompt }] }), signal: controller.signal });
       body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error?.message || body.message || ('Provider returned HTTP ' + response.status));
-      if (testOnly) return { ok: true, message: 'Connected. Anthropic model catalogue endpoint responded.' };
+      if (testOnly) return { ok: true, message: 'Connected. The selected Claude model completed a test request.' };
       const output = Array.isArray(body.content) ? body.content.filter(x => x.type === 'text').map(x => x.text).join('\n') : '';
       if (!output.trim()) throw new Error('Provider response did not contain assistant text');
       return { ok: true, text: output };
     }
-    const endpoint = base + '/models/' + encodeURIComponent(provider.model) + (testOnly ? '' : ':generateContent') + '?key=' + encodeURIComponent(key);
-    if (testOnly) response = await fetch(endpoint, { signal: controller.signal });
-    else response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: 'You are Motion Studio’s editing assistant. Give concrete video-editing and motion-design advice; do not claim to change files.\n\n' + prompt }] }] }), signal: controller.signal });
+    const endpoint = base + '/models/' + encodeURIComponent(provider.model) + ':generateContent';
+    response = await fetch(endpoint, { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ contents: [{ parts: [{ text: testOnly ? 'Reply with OK.' : 'You are Motion Studio’s editing assistant. Give concrete video-editing and motion-design advice; do not claim to change files.\n\n' + prompt }] }] }), signal: controller.signal });
     body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error?.message || ('Provider returned HTTP ' + response.status));
-    if (testOnly) return { ok: true, message: 'Connected. The selected Gemini model endpoint responded.' };
+    if (testOnly) return { ok: true, message: 'Connected. The selected Gemini model completed a test request.' };
     const output = body.candidates?.[0]?.content?.parts?.map(x => x.text || '').join('\n') || '';
     if (!output.trim()) throw new Error('Provider response did not contain assistant text');
     return { ok: true, text: output };
