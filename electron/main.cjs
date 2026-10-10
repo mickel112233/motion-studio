@@ -273,7 +273,7 @@ app.whenReady().then(() => {
       audioClips
     });
     const id = crypto.randomUUID();
-    ffmpegExportSession = { id, exporter, outputPath: filePath, frameCount: 0, duration };
+    ffmpegExportSession = { id, exporter, outputPath: filePath, frameCount: 0, duration, audioClipCount: audioClips.length };
     return { canceled: false, id, outputPath: filePath, audioClipCount: audioClips.length };
   });
 
@@ -291,7 +291,7 @@ app.whenReady().then(() => {
     if (!session || input?.id !== session.id) throw new Error('FFmpeg export session is not active');
     try {
       await session.exporter.finish();
-      return { outputPath: session.outputPath, framesWritten: session.frameCount };
+      return { outputPath: session.outputPath, framesWritten: session.frameCount, audioClipCount: session.audioClipCount };
     } catch (error) {
       await fs.rm(session.outputPath, { force: true }).catch(() => {});
       throw error;
