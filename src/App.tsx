@@ -128,7 +128,7 @@ export default function App() {
     setHistory(h => [...h.slice(-39), project]); setFuture([]);
     setProject(result.project as Project);
     if (!result.project.layers.some(layer => layer.id === selected)) setSelected(result.project.layers[0]?.id ?? '');
-    setIsDirty(true); setStatus(`Applied ${result.applied} AI edit operation(s) — undo is available");
+    setIsDirty(true); setStatus(`Applied ${result.applied} AI edit operation(s) — undo is available`);
     return { ok: true, message: `Applied ${result.applied} operation(s). Use Undo to revert the entire AI edit plan.` };
   };
   const updateScrubTime = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -605,7 +605,7 @@ export default function App() {
 </div>}</div> : panel==='audio' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><AudioLines size={20}/></div><strong>Audio workspace</strong><span>Control source audio from audio and video layers. Volume and mute settings are applied to WebM exports; waveform display and advanced audio routing are still planned.</span></div><button className="secondary-btn full-width" onClick={() => void importMedia()}><Upload size={15}/> Import audio or media</button><div className="inspector-section"><div className="section-title"><span>PROJECT AUDIO</span></div>{project.layers.filter(l=>l.kind==='audio'||l.kind==='video').length ? project.layers.filter(l=>l.kind==='audio'||l.kind==='video').map(l=><div className="audio-item" key={l.id}><div className="audio-item-title"><AudioLines size={15}/><span>{l.name}</span></div><div className="audio-controls"><label><input type="checkbox" checked={l.muted??false} onChange={e=>updateLayer(l.id,{muted:e.target.checked})}/> Mute</label><input aria-label={`Volume for ${l.name}`} type="range" min="0" max="100" value={l.volume??100} onChange={e=>updateLayer(l.id,{volume:Number(e.target.value)})}/><span>{l.volume??100}%</span></div></div>) : <div className="empty-inspector">No audio clips yet.</div>}</div></div> : <AgentPanel projectContext={JSON.stringify({ name: project.name, width: project.width, height: project.height, fps: project.fps, duration: project.duration, layers: project.layers.map(({id,name,kind,start,duration,visible,locked,text,color,opacity,volume,muted,effects,transitionIn,transitionOut,mask,colorGrade}) => ({id,name,kind,start,duration,visible,locked,text,color,opacity,volume,muted,effects,transitionIn,transitionOut,mask,colorGrade})) })} onApplyPlan={applyAiPlan} />}
       </aside>
     </div>
-    <footer className="statusbar"><div><span className="status-led"/> Ready <span className="status-sep">/</span> Local project</div><div className="status-center"><span><Command size={12}/> S to save</span><span><Command size={12}/> Z to undo</span><span>Space to play</span></div><div>Motion Studio <span className="status-sep">·</span> 0.6.0</div></footer>
+    <footer className="statusbar"><div><span className="status-led"/> Ready <span className="status-sep">/</span> Local project</div><div className="status-center"><span><Command size={12}/> S to save</span><span><Command size={12}/> Z to undo</span><span>Space to play</span></div><div>Motion Studio <span className="status-sep">·</span> 0.7.0</div></footer>
     <input ref={fileInput} type="file" hidden accept="image/*,video/*,audio/*,.json" onChange={e=>{const f=e.target.files?.[0]; if(f?.name.toLowerCase().endsWith('.json')) void openBrowserProject(f); else importBrowserFile(f); e.currentTarget.value='';}}/>
   </div>;
 }
