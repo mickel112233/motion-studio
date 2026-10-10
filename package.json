@@ -14,7 +14,8 @@
     "dist:linux": "npm run build && electron-builder --linux",
     "typecheck": "tsc --noEmit",
     "mcp:stdio": "node electron/mcp-server.cjs",
-    "mcp:check": "node --check electron/mcp-server.cjs"
+    "mcp:check": "node --check electron/mcp-server.cjs",
+    "test:mcp": "node --test electron/mcp-server.test.cjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -35,9 +36,28 @@
   "build": {
     "appId": "studio.motion.local",
     "productName": "Motion Studio",
-    "directories": { "output": "release" },
-    "files": ["dist/**/*", "electron/**/*", "package.json"],
-    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true }
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
   }
 }
