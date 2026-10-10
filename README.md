@@ -24,12 +24,13 @@ Open the **Agents** inspector tab, add a provider, choose its API type, set the 
 - Export a rendered PNG frame or animated WebM video from the canvas compositor (up to 120 seconds in this beta); MP4 is offered only when the current runtime advertises a compatible MediaRecorder encoder.
 - Undo/redo, visibility and locking controls, animated transform keyframes with linear/ease-in/ease-out/ease-in-out/hold interpolation, and editable outgoing easing.
 - Windows NSIS packaging configuration.
-- Export runtime diagnostics that look for FFmpeg in packaged/project runtime locations and PATH, verify the executable version, and clearly report that detection alone does not activate FFmpeg rendering.
+- FFmpeg-backed H.264 MP4 export from rendered RGBA frames, with bounded dimensions, progress, cancellation, and safe argument-based process launch. This initial FFmpeg path is video-only; browser WebM remains the option for audio mixing.
+- Export runtime diagnostics that look for FFmpeg in packaged/project runtime locations and PATH, verify the executable version, and report encoder availability.
 - **MCP server for external agents** to inspect/validate projects, create/update/duplicate/reorder/delete layers, change composition settings, set live effect stacks, and edit keyframes including easing.
 
 ## Export runtime detection
 
-Motion Studio checks for an FFmpeg executable in its expected runtime folders and on `PATH`. To make it detectable, install FFmpeg for your operating system and ensure `ffmpeg` (or `ffmpeg.exe` on Windows) is available on `PATH`, then restart Motion Studio. A local runtime can also be placed under `assets/runtime/ffmpeg/` when running from the project checkout. This check is diagnostic only: the current export path still uses browser `MediaRecorder`; the FFmpeg rendering and audio-mux pipeline is not connected yet.
+Motion Studio checks for an FFmpeg executable in its expected runtime folders and on `PATH`. To make it detectable, install FFmpeg for your operating system and ensure `ffmpeg` (or `ffmpeg.exe` on Windows) is available on `PATH`, then restart Motion Studio. A local runtime can also be placed under `assets/runtime/ffmpeg/` when running from the project checkout. FFmpeg is used for MP4 video rendering when detected. This initial path does not mux project audio; browser WebM remains the audio-capable export path. FFmpeg is not bundled with the installer, so install it separately or provide a runtime binary.
 
 ## Run on Windows
 
@@ -92,7 +93,7 @@ The MCP server edits a configured saved project file and can update clip transit
 2. Property-level keyframes, bezier easing, graph curves and animation presets.
 3. Canvas/WebGL compositor, advanced masks, blend modes and effect stack.
 4. Live audio preview playback, waveform display and timeline synchronization.
-5. FFmpeg-backed export, audio muxing, image sequences, cancellation and detailed render errors. Runtime detection is implemented; actual FFmpeg rendering is still pending.
+5. FFmpeg audio muxing, media-source audio, image sequences, cancellation hardening and detailed render errors. Video-only FFmpeg MP4 rendering is implemented; audio muxing remains pending.
 6. Automated unit tests, renderer E2E tests and Windows packaging validation.
 7. Scoped MCP permissions, undoable agent transactions, task approvals and plugin/extension API.
 
