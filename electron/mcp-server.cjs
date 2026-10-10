@@ -147,5 +147,13 @@ async function handle(m) {
   } catch (e) { error(m.id,-32000,e.message || 'Request failed'); }
 }
 const rl = readline.createInterface({input:process.stdin,crlfDelay:Infinity});
-rl.on('line',line=>{ if (!line.trim()) return; try { void handle(JSON.parse(line)); } catch { process.stderr.write('Ignored malformed JSON-RPC line\n'); } });
-rl.on('close',()=>process.exit(0));
+// Serialize requests so concurrent agent calls cannot overwrite each other's project edits.
+let requestQueue = Promise.resolve();
+rl.on('line',line=>{
+  if (!line.trim()) return;
+  let message;
+  try { message = JSON.parse(line); }
+  catch { process.stderr.write('Ignored malformed JSON-RPC line\n'); return; }
+  requestQueue = requestQueue.then(() => handle(message)).catch(error => { process.stderr.write('MCP request queue error: ' + error.message + '\n'); });
+});
+rl.on('close',()=>{ void requestQueue.finally(()=>process.exit(0)); });
