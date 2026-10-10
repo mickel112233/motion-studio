@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyEasing, evaluateTransform, isLayerActive, normalizeKeyframes, type AnimatableLayer } from './animation';
+import { applyEasing, evaluateTransform, isLayerActive, normalizeKeyframes, evaluateClipPresentation, type AnimatableLayer } from './animation';
 
 const layer = (overrides: Partial<AnimatableLayer> = {}): AnimatableLayer => ({
   start: 0, duration: 10, x: 0, y: 10, scale: 1, rotation: 0, opacity: 100,
