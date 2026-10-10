@@ -13,11 +13,11 @@ test('checks packaged, project runtime, and PATH locations without shell command
     platform: 'win32',
     resourcesPath: 'C:/app/resources',
     appPath: 'C:/app',
-    env: { PATH: ['C:/tools', 'D:/ffmpeg/bin'].join(path.delimiter) }
+    env: { PATH: ['/tools', '/ffmpeg/bin'].join(path.delimiter) }
   });
   assert.ok(candidates.includes(path.join('C:/app/resources', 'ffmpeg', 'ffmpeg.exe')));
   assert.ok(candidates.includes(path.join('C:/app', 'assets', 'runtime', 'ffmpeg', 'ffmpeg.exe')));
-  assert.ok(candidates.includes(path.join('C:/tools', 'ffmpeg.exe')));
+  assert.ok(candidates.includes(path.join('/tools', 'ffmpeg.exe')));
   assert.equal(new Set(candidates).size, candidates.length);
 });
 
