@@ -31,6 +31,7 @@ Check and build:
 npm run typecheck
 npm run build
 npm run mcp:check
+npm test
 npm run test:mcp
 npm run test:unit
 ```
