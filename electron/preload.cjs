@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('motionStudio', {
   autosaveProject: (project) => ipcRenderer.invoke('project:autosave', project),
   getRecoveryProject: () => ipcRenderer.invoke('project:get-recovery'),
   discardRecoveryProject: () => ipcRenderer.invoke('project:discard-recovery'),
+  acceptExternalProject: () => ipcRenderer.invoke('project:accept-external'),
   openProject: () => ipcRenderer.invoke('project:open'),
   importMedia: () => ipcRenderer.invoke('media:import'),
   onProjectExternalChange: (callback) => {
