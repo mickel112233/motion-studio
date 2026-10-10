@@ -2,6 +2,7 @@ export {};
 declare global {
   interface Window {
     motionStudio?: {
+      getExportCapabilities: () => Promise<{ ffmpeg: { available: boolean; executable: string | null; version: string | null; message?: string }; browserMediaRecorder: boolean }>;
       listProviders: () => Promise<Array<{ id: string; name: string; kind: 'openai-compatible' | 'anthropic' | 'gemini'; baseUrl: string; model: string; hasApiKey: boolean; updatedAt: string }>>;
       saveProvider: (provider: { id?: string; name: string; kind: 'openai-compatible' | 'anthropic' | 'gemini'; baseUrl: string; model: string; apiKey?: string }) => Promise<{ id: string; name: string; kind: 'openai-compatible' | 'anthropic' | 'gemini'; baseUrl: string; model: string; hasApiKey: boolean; updatedAt: string }>;
       deleteProvider: (id: string) => Promise<{ deleted: boolean }>;
