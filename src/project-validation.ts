@@ -4,7 +4,8 @@ export type ValidatedLayer = {
   id: string; name: string; kind: 'text' | 'shape' | 'image' | 'video' | 'audio';
   color: string; visible: boolean; locked: boolean; start: number; duration: number;
   x: number; y: number; scale: number; rotation: number; opacity: number;
-  text?: string; assetUrl?: string;
+  text?: string; assetUrl?: string; volume?: number; muted?: boolean;
+  effects?: { id: string; type: 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow'; enabled: boolean; value: number }[];
   keyframes: { time: number; x: number; y: number; scale: number; rotation: number; opacity: number; easing?: Easing }[];
 };
 export type ValidatedProject = {
@@ -42,10 +43,12 @@ export function isValidProject(value: unknown): value is ValidatedProject {
       const effectTypes = new Set(['blur','brightness','contrast','saturate','grayscale','sepia','hue-rotate','drop-shadow']);
       const limits: Record<string, number> = { blur:40, brightness:300, contrast:300, saturate:300, grayscale:100, sepia:100, 'hue-rotate':360, 'drop-shadow':50 };
       if (!Array.isArray(l.effects) || l.effects.length > 64) return false;
+      const effectIds = new Set<string>();
       for (const rawEffect of l.effects) {
         if (!rawEffect || typeof rawEffect !== 'object' || Array.isArray(rawEffect)) return false;
         const effect = rawEffect as Record<string, unknown>;
-        if (typeof effect.id !== 'string' || !effect.id || effect.id.length > 160 || typeof effect.type !== 'string' || !effectTypes.has(effect.type) || typeof effect.enabled !== 'boolean' || !finite(effect.value)) return false;
+        if (typeof effect.id !== 'string' || !effect.id || effect.id.length > 160 || effectIds.has(effect.id) || typeof effect.type !== 'string' || !effectTypes.has(effect.type) || typeof effect.enabled !== 'boolean' || !finite(effect.value)) return false;
+        effectIds.add(effect.id);
         if (effect.value < 0 || effect.value > limits[effect.type]) return false;
       }
     }
