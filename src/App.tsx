@@ -77,8 +77,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'timeline' | 'graph'>('timeline');
   const fileInput = useRef<HTMLInputElement>(null);
   const exportCancelRef = useRef(false);
-  const timelineDragRef = useRef<{ id: string; startX: number; originalStart: number; previewStart: number; trackWidth: number; pointerId: number } | null>(null);
-  const [dragPreview, setDragPreview] = useState<{ id: string; start: number } | null>(null);
+  const timelineDragRef = useRef<{ id: string; startX: number; originalStart: number; previewStart: number; originalDuration: number; previewDuration: number; trackWidth: number; pointerId: number; mode: 'move' | 'trim-start' | 'trim-end' } | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ id: string; start: number; duration: number } | null>(null);
   const selectedLayer = project.layers.find(l => l.id === selected) ?? project.layers[0];
   const selectedTransform = selectedLayer ? evaluateTransform(selectedLayer, currentTime) : undefined;
   const selectedKeyframe = selectedLayer?.keyframes.find(k => Math.abs(k.time - currentTime) < (1 / project.fps) / 2);
@@ -100,29 +100,46 @@ export default function App() {
     setHistory(h => [...h.slice(-39), project]); setFuture([]);
     setProject(updater(project)); setIsDirty(true); setStatus('Unsaved changes');
   };
-  const beginTimelineDrag = (event: ReactPointerEvent<HTMLDivElement>, layer: Layer) => {
+  const beginTimelineDrag = (event: ReactPointerEvent<HTMLDivElement>, layer: Layer, mode: 'move' | 'trim-start' | 'trim-end' = 'move') => {
     if (layer.locked) return;
-    const trackWidth = event.currentTarget.parentElement?.getBoundingClientRect().width ?? 0;
+    const trackWidth = event.currentTarget.closest('.track')?.getBoundingClientRect().width ?? 0;
     if (trackWidth <= 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    timelineDragRef.current = { id: layer.id, startX: event.clientX, originalStart: layer.start, previewStart: layer.start, trackWidth, pointerId: event.pointerId };
-    setSelected(layer.id); setDragPreview({ id: layer.id, start: layer.start });
+    event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
+    timelineDragRef.current = { id: layer.id, startX: event.clientX, originalStart: layer.start, previewStart: layer.start, originalDuration: layer.duration, previewDuration: layer.duration, trackWidth, pointerId: event.pointerId, mode };
+    setSelected(layer.id); setDragPreview({ id: layer.id, start: layer.start, duration: layer.duration });
   };
   const moveTimelineDrag = (event: ReactPointerEvent<HTMLDivElement>, layer: Layer) => {
     const drag = timelineDragRef.current;
     if (!drag || drag.id !== layer.id || drag.pointerId !== event.pointerId) return;
-    const maxStart = Math.max(0, project.duration - layer.duration);
-    const raw = drag.originalStart + ((event.clientX - drag.startX) / drag.trackWidth) * project.duration;
-    const start = Math.max(0, Math.min(maxStart, Math.round(raw * project.fps) / project.fps));
-    drag.previewStart = start;
-    setDragPreview({ id: layer.id, start });
+    const delta = ((event.clientX - drag.startX) / drag.trackWidth) * project.duration;
+    const minDuration = 1 / project.fps;
+    if (drag.mode === 'move') {
+      const maxStart = Math.max(0, project.duration - drag.originalDuration);
+      drag.previewStart = Math.max(0, Math.min(maxStart, Math.round((drag.originalStart + delta) * project.fps) / project.fps));
+      drag.previewDuration = drag.originalDuration;
+    } else if (drag.mode === 'trim-start') {
+      const end = drag.originalStart + drag.originalDuration;
+      const maxStart = Math.max(0, Math.min(end - minDuration, project.duration - minDuration));
+      drag.previewStart = Math.max(0, Math.min(maxStart, Math.round((drag.originalStart + delta) * project.fps) / project.fps));
+      drag.previewDuration = Math.max(minDuration, end - drag.previewStart);
+    } else {
+      drag.previewStart = drag.originalStart;
+      drag.previewDuration = Math.max(minDuration, Math.min(project.duration - drag.originalStart, Math.round((drag.originalDuration + delta) * project.fps) / project.fps));
+    }
+    setDragPreview({ id: layer.id, start: drag.previewStart, duration: drag.previewDuration });
   };
   const finishTimelineDrag = (event: ReactPointerEvent<HTMLDivElement>, layer: Layer) => {
     const drag = timelineDragRef.current;
     if (!drag || drag.id !== layer.id || drag.pointerId !== event.pointerId) return;
     timelineDragRef.current = null; setDragPreview(null);
+    if (drag.mode === 'trim-start') {
+      if (Math.abs(drag.previewStart - drag.originalStart) >= 1 / project.fps / 2) updateLayer(layer.id, { start: drag.previewStart, duration: drag.previewDuration });
+      return;
+    }
+    if (drag.mode === 'trim-end') {
+      if (Math.abs(drag.previewDuration - drag.originalDuration) >= 1 / project.fps / 2) updateLayer(layer.id, { duration: drag.previewDuration });
+      return;
+    }
     const delta = drag.previewStart - drag.originalStart;
     if (Math.abs(delta) < 1 / project.fps / 2) return;
     const nextFrames = layer.keyframes.map(frame => ({ ...frame, time: Math.max(0, Math.min(project.duration, frame.time + delta)) })).sort((a,b) => a.time-b.time);
@@ -400,7 +417,7 @@ export default function App() {
           <div className="timeline-body">
             <div className="layer-column"><div className="layer-column-head"><span>LAYERS</span><span>V</span><span>L</span></div>{[...project.layers].reverse().map(layer => <div key={layer.id} className={selected === layer.id ? 'layer-row selected-layer' : 'layer-row'} onClick={() => setSelected(layer.id)}><span className="layer-color" style={{background:layer.color}}/><LayerIcon kind={layer.kind}/><span className="layer-name">{layer.name}</span><button className="layer-mini" title={layer.visible?'Hide layer':'Show layer'} onClick={e => {e.stopPropagation();updateLayer(layer.id,{visible:!layer.visible});}}>{layer.visible?<Eye size={13}/>:<EyeOff size={13}/>}</button><button className="layer-mini" title={layer.locked?'Unlock':'Lock'} onClick={e => {e.stopPropagation();updateLayer(layer.id,{locked:!layer.locked});}}><Square size={12} fill={layer.locked?'currentColor':'none'}/></button></div>)}</div>
             <div className="tracks-wrap"><div className="ruler">{Array.from({length:Math.ceil(project.duration)+1},(_,i)=><div key={i} className="ruler-tick" style={{left:timeX(i)}}><span>{i===0?'00':String(i).padStart(2,'0')}s</span></div>)}</div>
-              {activeTab === 'timeline' ? <div className="tracks">{[...project.layers].reverse().map(layer => {const clipStart=dragPreview?.id===layer.id?dragPreview.start:layer.start;return <div className="track" key={layer.id} onClick={() => setSelected(layer.id)}><div className={selected===layer.id?'clip selected-clip':'clip'} title={layer.locked?'Layer locked':'Drag to move clip; snaps to frame boundaries'} style={{left:timeX(clipStart),width:timeX(Math.max(0,Math.min(layer.duration,project.duration-clipStart))),background:layer.color+'30',borderColor:layer.color,cursor:layer.locked?'not-allowed':'grab',touchAction:'none'}} onPointerDown={e=>beginTimelineDrag(e,layer)} onPointerMove={e=>moveTimelineDrag(e,layer)} onPointerUp={e=>finishTimelineDrag(e,layer)} onPointerCancel={()=>{timelineDragRef.current=null;setDragPreview(null);}}><span>{layer.name}</span>{layer.keyframes.map(k => <span key={k.time} className="keyframe" style={{left:`${Math.max(0,Math.min(100,((k.time-layer.start)/Math.max(layer.duration,.001))*100))}%`}} title={`Keyframe ${k.time}s · ${k.easing || 'linear'}`}/> )}</div></div>})}
+              {activeTab === 'timeline' ? <div className="tracks">{[...project.layers].reverse().map(layer => {const clipStart=dragPreview?.id===layer.id?dragPreview.start:layer.start;const clipDuration=dragPreview?.id===layer.id?dragPreview.duration:layer.duration;return <div className="track" key={layer.id} onClick={() => setSelected(layer.id)}><div className={selected===layer.id?'clip selected-clip':'clip'} title={layer.locked?'Layer locked':'Drag the clip to move it; drag its edges to trim'} style={{left:timeX(clipStart),width:timeX(Math.max(0,Math.min(clipDuration,project.duration-clipStart))),background:layer.color+'30',borderColor:layer.color,cursor:layer.locked?'not-allowed':'grab',touchAction:'none'}} onPointerDown={e=>beginTimelineDrag(e,layer)} onPointerMove={e=>moveTimelineDrag(e,layer)} onPointerUp={e=>finishTimelineDrag(e,layer)} onPointerCancel={()=>{timelineDragRef.current=null;setDragPreview(null);}}><div className="trim-handle trim-start" onPointerDown={e=>beginTimelineDrag(e,layer,'trim-start')} title="Trim start"/><span>{layer.name}</span>{layer.keyframes.map(k => <span key={k.time} className="keyframe" style={{left:`${Math.max(0,Math.min(100,((k.time-layer.start)/Math.max(layer.duration,.001))*100))}%`}} title={`Keyframe ${k.time}s · ${k.easing || 'linear'}`}/> )}<div className="trim-handle trim-end" onPointerDown={e=>beginTimelineDrag(e,layer,'trim-end')} title="Trim end"/></div></div>})}
                 <div className="playhead" style={{left:timeX(currentTime)}}><div className="playhead-cap"/><div className="playhead-line"/></div></div> : <div className="graph-empty"><Activity size={22}/><strong>Animation curves</strong><span>Keyframes now interpolate in the preview. Select a keyframe time to change the outgoing easing curve.</span><div className="graph-controls"><button className="secondary-btn" onClick={() => { if(selectedLayer) updateLayer(selectedLayer.id,{keyframes:upsertKeyframe(selectedLayer,currentTime)}); }}>Set keyframe at playhead</button><label className="easing-label">Outgoing easing<select className="easing-select" value={selectedKeyframe?.easing || 'linear'} disabled={!selectedLayer || !selectedKeyframe} onChange={e => { if(selectedLayer && selectedKeyframe) updateLayer(selectedLayer.id,{keyframes:selectedLayer.keyframes.map(k => Math.abs(k.time-selectedKeyframe.time)<1e-7 ? {...k,easing:e.target.value as Easing} : k)}); }}><option value="linear">Linear</option><option value="ease-in">Ease in</option><option value="ease-out">Ease out</option><option value="ease-in-out">Ease in / out</option><option value="hold">Hold</option></select></label></div></div>}
             </div>
           </div>
