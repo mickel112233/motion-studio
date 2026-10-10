@@ -4,6 +4,7 @@ const fsSync = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { pathToFileURL } = require('node:url');
+const { inspectFfmpeg } = require('./ffmpeg-runtime.cjs');
 
 const isDev = !app.isPackaged;
 const MAX_PROJECT_BYTES = 20 * 1024 * 1024;
@@ -231,6 +232,8 @@ function createWindow() {
   else win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 }
 app.whenReady().then(() => {
+
+  ipcMain.handle('export:capabilities', async () => ({ ffmpeg: inspectFfmpeg(), browserMediaRecorder: Boolean(mainWindow && mainWindow.webContents) }));
 
   ipcMain.handle('providers:list', async () => (await readProviderStore()).map(publicProvider));
   ipcMain.handle('providers:save', async (_event, input) => {
