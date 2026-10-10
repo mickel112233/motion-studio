@@ -9,6 +9,7 @@ const isDev = !app.isPackaged;
 const MAX_PROJECT_BYTES = 20 * 1024 * 1024;
 let currentProjectPath = null;
 let lastSavedHash = null;
+let lastNotifiedExternalHash = null;
 let projectWatcher = null;
 let watchTimer = null;
 let mainWindow = null;
@@ -88,9 +89,11 @@ function watchProjectFile(filePath) {
         try {
           const raw = await fs.readFile(filePath);
           const hash = hashContent(raw);
-          if (hash === lastSavedHash) return;
+          if (hash === lastSavedHash || hash === lastNotifiedExternalHash) return;
           const data = validateProject(JSON.parse(raw.toString('utf8')));
-          lastSavedHash = hash;
+          // Do not advance lastSavedHash until the renderer explicitly accepts this version.
+          // Otherwise a user who declines the reload could unknowingly overwrite agent edits.
+          lastNotifiedExternalHash = hash;
           if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('project:external-change', { filePath, data });
         } catch (error) {
           if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('project:external-change', { filePath, error: error.message || 'External project change could not be validated' });
@@ -118,7 +121,6 @@ async function checkExternalVersion(filePath) {
   const hash = hashContent(raw);
   if (!lastSavedHash || hash === lastSavedHash) return null;
   const data = validateProject(JSON.parse(raw.toString('utf8')));
-  lastSavedHash = hash;
   return data;
 }
 
@@ -166,6 +168,7 @@ app.whenReady().then(() => {
     await writeProject(filePath, data);
     currentProjectPath = filePath;
     lastSavedHash = hashContent(JSON.stringify(data, null, 2) + '\n');
+    lastNotifiedExternalHash = null;
     watchProjectFile(filePath);
     await clearRecovery();
     return { canceled: false, conflict: false, filePath };
@@ -176,6 +179,7 @@ app.whenReady().then(() => {
     await writeProject(filePath, data);
     currentProjectPath = filePath;
     lastSavedHash = hashContent(JSON.stringify(data, null, 2) + '\n');
+    lastNotifiedExternalHash = null;
     watchProjectFile(filePath);
     await clearRecovery();
     return { canceled: false, conflict: false, filePath };
@@ -190,6 +194,7 @@ app.whenReady().then(() => {
     const raw = await fs.readFile(filePaths[0]);
     currentProjectPath = filePaths[0];
     lastSavedHash = hashContent(raw);
+    lastNotifiedExternalHash = null;
     watchProjectFile(filePaths[0]);
     await clearRecovery();
     return { canceled: false, filePath: filePaths[0], data };
@@ -206,11 +211,21 @@ app.whenReady().then(() => {
       }
       await writeProject(currentProjectPath, data);
       lastSavedHash = hashContent(JSON.stringify(data, null, 2) + '\n');
+      lastNotifiedExternalHash = null;
       return { saved: true, recovery: false, filePath: currentProjectPath };
     }
     const filePath = recoveryFilePath();
     await writeProject(filePath, data);
     return { saved: true, recovery: true, filePath };
+  });
+  ipcMain.handle('project:accept-external', async () => {
+    if (!currentProjectPath) return { accepted: false };
+    const raw = await fs.readFile(currentProjectPath);
+    if (raw.length > MAX_PROJECT_BYTES) throw new Error('Project file exceeds 20 MB');
+    validateProject(JSON.parse(raw.toString('utf8')));
+    lastSavedHash = hashContent(raw);
+    lastNotifiedExternalHash = null;
+    return { accepted: true, filePath: currentProjectPath };
   });
   ipcMain.handle('project:get-recovery', async () => {
     const filePath = recoveryFilePath();
