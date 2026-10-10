@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
-const { createFfmpegFrameExporter, validateExportSpec, buildFfmpegArgs, normalizeAudioClips } = require('./ffmpeg-export.cjs');
+const { createFfmpegFrameExporter, validateExportSpec, expectedFrameCount, validateCompletedFrameCount, buildFfmpegArgs, normalizeAudioClips } = require('./ffmpeg-export.cjs');
 
 function fakeSpawn(captured) {
   return (executable, args, options) => {
@@ -77,4 +77,12 @@ test('rejects malformed or excessive audio clips and invalid export duration', (
   assert.throws(() => normalizeAudioClips([{ path: '/a.wav', start: -1, duration: 2, volume: 50 }], 10), /invalid timing/);
   assert.throws(() => normalizeAudioClips(Array.from({ length: 33 }, (_, i) => ({ path: '/' + i, start: 0, duration: 1, volume: 100 })), 10), /32 audio clips/);
   assert.throws(() => createFfmpegFrameExporter({ executable: 'ffmpeg', outputPath: '/tmp/out.mp4', width: 16, height: 16, fps: 24 }), /duration/);
+});
+
+test('requires every expected frame before accepting an MP4 export as complete', () => {
+  assert.equal(expectedFrameCount(2, 24), 48);
+  assert.equal(validateCompletedFrameCount(48, 2, 24), 48);
+  assert.throws(() => validateCompletedFrameCount(47, 2, 24), /incomplete.*47 of 48 frames/);
+  assert.throws(() => validateCompletedFrameCount(0, 2, 24), /incomplete.*0 of 48 frames/);
+  assert.throws(() => expectedFrameCount(0, 24), /duration/);
 });
