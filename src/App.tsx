@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evaluateTransform, isLayerActive, type Easing } from './animation';
 import { drawComposition } from './compositor';
+import { isValidProject } from './project-validation';
 import {
   Activity, AlignCenter, Aperture, AudioLines, Bot, Box, ChevronDown, ChevronRight,
   CircleHelp, Clapperboard, Clock3, Command, Copy, Download, Eye, EyeOff,
@@ -140,8 +141,21 @@ export default function App() {
     if (!window.motionStudio) { fileInput.current?.click(); return; }
     try {
       const result = await window.motionStudio.openProject();
-      if (!result.canceled && result.data) { const d = result.data as Project; if (Array.isArray(d.layers)) { setProject(d); setSelected(d.layers[0]?.id ?? ''); setStatus('Project opened'); } }
-    } catch { setStatus('Could not open project file'); }
+      if (result.canceled || !result.data) return;
+      if (!isValidProject(result.data)) { setStatus('Project file is invalid or unsupported'); return; }
+      setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setStatus('Project opened');
+    } catch (error) {
+      setStatus(error instanceof Error ? 'Could not open project: ' + error.message : 'Could not open project file');
+    }
+  };
+  const openBrowserProject = async (file: File) => {
+    try {
+      const data: unknown = JSON.parse(await file.text());
+      if (!isValidProject(data)) { setStatus('Project file is invalid or unsupported'); return; }
+      setProject(data); setSelected(data.layers[0]?.id ?? ''); setCurrentTime(0); setStatus('Project opened');
+    } catch {
+      setStatus('Could not read project JSON');
+    }
   };
   const importMedia = async () => {
     if (window.motionStudio) {
@@ -313,7 +327,7 @@ export default function App() {
       </aside>
     </div>
     <footer className="statusbar"><div><span className="status-led"/> Ready <span className="status-sep">/</span> Local project</div><div className="status-center"><span><Command size={12}/> S to save</span><span><Command size={12}/> Z to undo</span><span>Space to play</span></div><div>Motion Studio <span className="status-sep">·</span> 0.2.0</div></footer>
-    <input ref={fileInput} type="file" hidden accept="image/*,video/*,audio/*,.json" onChange={e=>{const f=e.target.files?.[0]; if(f?.name.endsWith('.json')) {void f.text().then(t=>{try{const p=JSON.parse(t);if(Array.isArray(p.layers)){setProject(p);setSelected(p.layers[0]?.id??'');setStatus('Project opened');}else importBrowserFile(f);}catch{importBrowserFile(f);}});}else importBrowserFile(f);e.currentTarget.value='';}}/>
+    <input ref={fileInput} type="file" hidden accept="image/*,video/*,audio/*,.json" onChange={e=>{const f=e.target.files?.[0]; if(f?.name.toLowerCase().endsWith('.json')) void openBrowserProject(f); else importBrowserFile(f); e.currentTarget.value='';}}/>
   </div>;
 }
 function NumberField({value,onChange,suffix}:{value:number;onChange:(v:number)=>void;suffix?:string}) {
