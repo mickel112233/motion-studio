@@ -1,11 +1,17 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const fs = require('node:fs/promises');
+const fsSync = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 
 const isDev = !app.isPackaged;
 const MAX_PROJECT_BYTES = 20 * 1024 * 1024;
 let currentProjectPath = null;
+let lastSavedHash = null;
+let projectWatcher = null;
+let watchTimer = null;
+let mainWindow = null;
 
 function validateProject(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Project must be a JSON object');
@@ -56,6 +62,40 @@ async function writeProject(filePath, data) {
   }
 }
 
+function hashContent(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function watchProjectFile(filePath) {
+  if (projectWatcher) projectWatcher.close();
+  projectWatcher = null;
+  if (watchTimer) clearTimeout(watchTimer);
+  if (!filePath || !mainWindow) return;
+  try {
+    projectWatcher = fsSync.watch(path.dirname(filePath), (_event, filename) => {
+      if (filename && filename.toString() !== path.basename(filePath)) return;
+      if (watchTimer) clearTimeout(watchTimer);
+      watchTimer = setTimeout(async () => {
+        try {
+          const raw = await fs.readFile(filePath);
+          const hash = hashContent(raw);
+          if (hash === lastSavedHash) return;
+          const data = validateProject(JSON.parse(raw.toString('utf8')));
+          lastSavedHash = hash;
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('project:external-change', { filePath, data });
+        } catch (error) {
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('project:external-change', { filePath, error: error.message || 'External project change could not be validated' });
+        }
+      }, 250);
+    });
+    projectWatcher.on('error', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('project:external-change', { filePath, error: 'Could not monitor project file changes' });
+    });
+  } catch {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('project:external-change', { filePath, error: 'Could not monitor project file changes' });
+  }
+}
+
 async function chooseSavePath() {
   const { canceled, filePath } = await dialog.showSaveDialog({
     title: 'Save Motion Studio project',
@@ -77,6 +117,8 @@ function createWindow() {
       sandbox: true
     }
   });
+  mainWindow = win;
+  win.on('closed', () => { if (mainWindow === win) mainWindow = null; if (projectWatcher) projectWatcher.close(); projectWatcher = null; });
   if (isDev) win.loadURL('http://127.0.0.1:5173');
   else win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 }
@@ -87,6 +129,8 @@ app.whenReady().then(() => {
     if (!filePath) return { canceled: true };
     await writeProject(filePath, data);
     currentProjectPath = filePath;
+    lastSavedHash = hashContent(JSON.stringify(data, null, 2) + '\n');
+    watchProjectFile(filePath);
     return { canceled: false, filePath };
   });
   ipcMain.handle('project:save-as', async (_event, data) => {
@@ -94,6 +138,8 @@ app.whenReady().then(() => {
     if (!filePath) return { canceled: true };
     await writeProject(filePath, data);
     currentProjectPath = filePath;
+    lastSavedHash = hashContent(JSON.stringify(data, null, 2) + '\n');
+    watchProjectFile(filePath);
     return { canceled: false, filePath };
   });
   ipcMain.handle('project:open', async () => {
@@ -103,7 +149,10 @@ app.whenReady().then(() => {
     });
     if (canceled || !filePaths[0]) return { canceled: true };
     const data = await readProject(filePaths[0]);
+    const raw = await fs.readFile(filePaths[0]);
     currentProjectPath = filePaths[0];
+    lastSavedHash = hashContent(raw);
+    watchProjectFile(filePaths[0]);
     return { canceled: false, filePath: filePaths[0], data };
   });
   ipcMain.handle('media:import', async () => {
