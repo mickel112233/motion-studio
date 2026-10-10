@@ -180,6 +180,7 @@ export default function App() {
     }
   };
   const open = async () => {
+    if (isDirty && !window.confirm('Open another project and discard your unsaved changes?')) return;
     if (!window.motionStudio) { fileInput.current?.click(); return; }
     try {
       const result = await window.motionStudio.openProject();
@@ -191,6 +192,7 @@ export default function App() {
     }
   };
   const openBrowserProject = async (file: File) => {
+    if (isDirty && !window.confirm('Open this project and discard your unsaved changes?')) return;
     try {
       const data: unknown = JSON.parse(await file.text());
       if (!isValidProject(data)) { setStatus('Project file is invalid or unsupported'); return; }
