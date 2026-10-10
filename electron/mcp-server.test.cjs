@@ -44,6 +44,12 @@ test('MCP server initializes and safely edits a configured project', async () =>
     const effects = await request(9, 'tools/call', { name: 'layers.set_effects', arguments: { id: layerId, effects: [{ type: 'blur', value: 6 }, { type: 'brightness', value: 115 }] } });
     assert.equal(effects.result.isError, false);
     assert.equal(effects.result.structuredContent.result.result.length, 2);
+    const lock = await request(10, 'tools/call', { name: 'layers.update', arguments: { id: layerId, patch: { locked: true } } });
+    assert.equal(lock.result.isError, false);
+    const blocked = await request(11, 'tools/call', { name: 'layers.update', arguments: { id: layerId, patch: { text: 'must not apply' } } });
+    assert.equal(blocked.result.isError, true);
+    const unlock = await request(12, 'tools/call', { name: 'layers.update', arguments: { id: layerId, patch: { locked: false } } });
+    assert.equal(unlock.result.isError, false);
     const duplicated = await request(6, 'tools/call', { name: 'layers.duplicate', arguments: { id: layerId, offsetX: 30 } });
     assert.equal(duplicated.result.isError, false);
     const duplicateId = duplicated.result.structuredContent.result.result.id;
