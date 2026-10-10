@@ -41,6 +41,9 @@ test('MCP server initializes and safely edits a configured project', async () =>
     const keyed = await request(5, 'tools/call', { name: 'layers.add_keyframe', arguments: { id: layerId, time: 4, x: 120, easing: 'ease-in' } });
     assert.equal(keyed.result.isError, false);
     assert.equal(keyed.result.structuredContent.result.result.easing, 'ease-in');
+    const effects = await request(9, 'tools/call', { name: 'layers.set_effects', arguments: { id: layerId, effects: [{ type: 'blur', value: 6 }, { type: 'brightness', value: 115 }] } });
+    assert.equal(effects.result.isError, false);
+    assert.equal(effects.result.structuredContent.result.result.length, 2);
     const duplicated = await request(6, 'tools/call', { name: 'layers.duplicate', arguments: { id: layerId, offsetX: 30 } });
     assert.equal(duplicated.result.isError, false);
     const duplicateId = duplicated.result.structuredContent.result.result.id;
@@ -53,6 +56,7 @@ test('MCP server initializes and safely edits a configured project', async () =>
     assert.equal(saved.layers.length, 1);
     assert.equal(saved.layers[0].text, 'Hello from MCP');
     assert.equal(saved.layers[0].keyframes.find(frame => frame.time === 4).easing, 'ease-in');
+    assert.equal(saved.layers[0].effects.length, 2);
   } finally {
     child.stdin.end();
     child.kill();
