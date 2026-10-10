@@ -7,7 +7,7 @@ export type AudioExportSession = {
 };
 
 function waitUntilPlayable(audio: HTMLAudioElement): Promise<void> {
-  if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return Promise.resolve();
+  if (audio.readyState >= 2) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => { cleanup(); reject(new Error('Timed out loading audio clip')); }, 15000);
     const cleanup = () => {
