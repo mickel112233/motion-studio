@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, safeStorage } = require('electron');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
@@ -81,6 +81,80 @@ async function writeProject(filePath, data) {
   }
 }
 
+
+const PROVIDER_KINDS = new Set(['openai-compatible', 'anthropic', 'gemini']);
+function providerStorePath() { return path.join(app.getPath('userData'), 'api-providers.json'); }
+function normalizeProviderUrl(value, kind) {
+  const defaults = { 'openai-compatible': 'https://api.openai.com/v1', anthropic: 'https://api.anthropic.com', gemini: 'https://generativelanguage.googleapis.com/v1beta' };
+  const raw = (typeof value === 'string' && value.trim()) || defaults[kind];
+  let parsed;
+  try { parsed = new URL(raw); } catch { throw new Error('Enter a valid API base URL'); }
+  if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error('API URL must use HTTPS (HTTP is only suitable for local endpoints)');
+  if (parsed.protocol === 'http:' && !['localhost', '127.0.0.1', '::1'].includes(parsed.hostname)) throw new Error('HTTP is allowed only for localhost API endpoints');
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) throw new Error('API base URL cannot contain credentials, query parameters or fragments');
+  return parsed.toString().replace(/\/+$/, '');
+}
+async function readProviderStore() {
+  try { const value = JSON.parse(await fs.readFile(providerStorePath(), 'utf8')); return Array.isArray(value.providers) ? value.providers : []; }
+  catch (error) { if (error.code === 'ENOENT') return []; throw new Error('Could not read API provider settings'); }
+}
+async function writeProviderStore(providers) {
+  const target = providerStorePath(), temp = target + '.tmp';
+  await fs.writeFile(temp, JSON.stringify({ version: 1, providers }, null, 2), { mode: 0o600 });
+  await fs.rename(temp, target);
+}
+function publicProvider(provider) {
+  return { id: provider.id, name: provider.name, kind: provider.kind, baseUrl: provider.baseUrl, model: provider.model, hasApiKey: Boolean(provider.encryptedKey), updatedAt: provider.updatedAt };
+}
+function decryptProviderKey(provider) {
+  if (!provider.encryptedKey) throw new Error('This provider has no API key. Edit it and enter a key first.');
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure credential storage is unavailable on this system; API keys cannot be decrypted safely.');
+  try { return safeStorage.decryptString(Buffer.from(provider.encryptedKey, 'base64')); }
+  catch { throw new Error('Could not decrypt the saved API key. Re-enter it in provider settings.'); }
+}
+async function requestProvider(provider, prompt, testOnly = false) {
+  const key = decryptProviderKey(provider);
+  const base = provider.baseUrl;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    let response, body;
+    if (provider.kind === 'openai-compatible') {
+      const endpoint = base + '/models';
+      if (testOnly) response = await fetch(endpoint, { headers: { Authorization: 'Bearer ' + key }, signal: controller.signal });
+      else response = await fetch(base + '/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: provider.model, messages: [{ role: 'system', content: 'You are Motion Studio’s editing assistant. Give concrete video-editing and motion-design advice. Never claim to have changed the project.' }, { role: 'user', content: prompt }], temperature: 0.4 }), signal: controller.signal });
+      body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error?.message || body.message || ('Provider returned HTTP ' + response.status));
+      if (testOnly) return { ok: true, message: 'Connected. Model catalogue endpoint responded.' };
+      const output = body.choices?.[0]?.message?.content;
+      if (typeof output !== 'string' || !output.trim()) throw new Error('Provider response did not contain assistant text');
+      return { ok: true, text: output };
+    }
+    if (provider.kind === 'anthropic') {
+      if (testOnly) response = await fetch(base + '/v1/models', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, signal: controller.signal });
+      else response = await fetch(base + '/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify({ model: provider.model, max_tokens: 1200, system: 'You are Motion Studio’s editing assistant. Give concrete video-editing and motion-design advice. Never claim to have changed the project.', messages: [{ role: 'user', content: prompt }] }), signal: controller.signal });
+      body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error?.message || body.message || ('Provider returned HTTP ' + response.status));
+      if (testOnly) return { ok: true, message: 'Connected. Anthropic model catalogue endpoint responded.' };
+      const output = Array.isArray(body.content) ? body.content.filter(x => x.type === 'text').map(x => x.text).join('\n') : '';
+      if (!output.trim()) throw new Error('Provider response did not contain assistant text');
+      return { ok: true, text: output };
+    }
+    const endpoint = base + '/models/' + encodeURIComponent(provider.model) + (testOnly ? '' : ':generateContent') + '?key=' + encodeURIComponent(key);
+    if (testOnly) response = await fetch(endpoint, { signal: controller.signal });
+    else response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: 'You are Motion Studio’s editing assistant. Give concrete video-editing and motion-design advice; do not claim to change files.\n\n' + prompt }] }] }), signal: controller.signal });
+    body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error?.message || ('Provider returned HTTP ' + response.status));
+    if (testOnly) return { ok: true, message: 'Connected. The selected Gemini model endpoint responded.' };
+    const output = body.candidates?.[0]?.content?.parts?.map(x => x.text || '').join('\n') || '';
+    if (!output.trim()) throw new Error('Provider response did not contain assistant text');
+    return { ok: true, text: output };
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('Provider request timed out after 20 seconds');
+    throw error;
+  } finally { clearTimeout(timeout); }
+}
+
 function hashContent(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
@@ -160,6 +234,50 @@ function createWindow() {
   else win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 }
 app.whenReady().then(() => {
+
+  ipcMain.handle('providers:list', async () => (await readProviderStore()).map(publicProvider));
+  ipcMain.handle('providers:save', async (_event, input) => {
+    if (!input || typeof input !== 'object') throw new Error('Provider configuration is invalid');
+    const kind = input.kind;
+    if (!PROVIDER_KINDS.has(kind)) throw new Error('Choose a supported API type');
+    const name = typeof input.name === 'string' ? input.name.trim().slice(0, 80) : '';
+    const model = typeof input.model === 'string' ? input.model.trim().slice(0, 200) : '';
+    if (!name) throw new Error('Provider name is required');
+    if (!model) throw new Error('Model ID is required');
+    const baseUrl = normalizeProviderUrl(input.baseUrl, kind);
+    const providers = await readProviderStore();
+    const id = typeof input.id === 'string' && providers.some(p => p.id === input.id) ? input.id : crypto.randomUUID();
+    const old = providers.find(p => p.id === id);
+    let encryptedKey = old?.encryptedKey || '';
+    if (typeof input.apiKey === 'string' && input.apiKey.trim()) {
+      if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure credential storage is unavailable on this system. API key was not saved.');
+      encryptedKey = safeStorage.encryptString(input.apiKey.trim()).toString('base64');
+    }
+    const next = { id, name, kind, baseUrl, model, encryptedKey, updatedAt: new Date().toISOString() };
+    const index = providers.findIndex(p => p.id === id);
+    if (index >= 0) providers[index] = next; else providers.push(next);
+    await writeProviderStore(providers);
+    return publicProvider(next);
+  });
+  ipcMain.handle('providers:delete', async (_event, id) => {
+    const providers = await readProviderStore();
+    const next = providers.filter(p => p.id !== id);
+    await writeProviderStore(next);
+    return { deleted: next.length !== providers.length };
+  });
+  ipcMain.handle('providers:test', async (_event, id) => {
+    const provider = (await readProviderStore()).find(p => p.id === id);
+    if (!provider) throw new Error('Provider was not found');
+    return requestProvider(provider, '', true);
+  });
+  ipcMain.handle('providers:ask', async (_event, input) => {
+    const provider = (await readProviderStore()).find(p => p.id === input?.id);
+    if (!provider) throw new Error('Choose a saved API provider first');
+    if (typeof input.prompt !== 'string' || !input.prompt.trim()) throw new Error('Describe what you want to edit');
+    const context = typeof input.projectContext === 'string' ? input.projectContext.slice(0, 12000) : '';
+    return requestProvider(provider, 'Editing request:\n' + input.prompt.trim().slice(0, 5000) + '\n\nCurrent project summary:\n' + context, false);
+  });
+
   ipcMain.handle('project:save', async (_event, data) => {
     const previousPath = currentProjectPath;
     let filePath = currentProjectPath;
