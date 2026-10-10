@@ -1,4 +1,26 @@
 export type Easing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'hold';
+export type ClipTransition = 'none' | 'fade' | 'wipe-left' | 'wipe-right' | 'zoom';
+export type ClipTransitionConfig = { type: ClipTransition; duration: number };
+export type ClipPresentation = { opacity: number; scale: number; clipPath?: string };
+
+/** Deterministic clip-level transitions shared by the DOM preview and canvas export. */
+export function evaluateClipPresentation(layer: { start: number; duration: number; transitionIn?: ClipTransitionConfig; transitionOut?: ClipTransitionConfig }, time: number): ClipPresentation {
+  let opacity = 1, scale = 1, clipPath: string | undefined;
+  const apply = (transition: ClipTransitionConfig | undefined, progress: number, outgoing: boolean) => {
+    if (!transition || transition.type === 'none' || !Number.isFinite(transition.duration) || transition.duration <= 0) return;
+    const p = Math.max(0, Math.min(1, progress));
+    if (transition.type === 'fade') opacity *= outgoing ? 1 - p : p;
+    if (transition.type === 'zoom') scale *= outgoing ? 1 + p * .2 : .8 + p * .2;
+    if (transition.type === 'wipe-left') clipPath = outgoing ? `inset(0 ${p * 100}% 0 0)` : `inset(0 ${(1 - p) * 100}% 0 0)`;
+    if (transition.type === 'wipe-right') clipPath = outgoing ? `inset(0 0 0 ${p * 100}%)` : `inset(0 0 0 ${(1 - p) * 100}%)`;
+  };
+  const intro = layer.transitionIn;
+  if (intro && intro.duration > 0 && time < layer.start + intro.duration) apply(intro, (time - layer.start) / intro.duration, false);
+  const outro = layer.transitionOut;
+  const end = layer.start + layer.duration;
+  if (outro && outro.duration > 0 && time > end - outro.duration) apply(outro, (time - (end - outro.duration)) / outro.duration, true);
+  return { opacity: Math.max(0, Math.min(1, opacity)), scale, clipPath };
+}
 
 export type Transform = {
   x: number;
