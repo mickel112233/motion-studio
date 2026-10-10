@@ -38,6 +38,20 @@ function normalizeAudioClips(audioClips, duration) {
   }).filter(Boolean);
 }
 
+function expectedFrameCount(duration, fps) {
+  if (!Number.isFinite(duration) || duration <= 0 || duration > 120) throw new Error('Export duration must be greater than 0 and at most 120 seconds');
+  if (!Number.isFinite(fps) || fps < 1 || fps > 60) throw new Error('Export frame rate must be between 1 and 60 FPS');
+  return Math.ceil(duration * fps);
+}
+
+function validateCompletedFrameCount(frameCount, duration, fps) {
+  const expected = expectedFrameCount(duration, fps);
+  if (!Number.isSafeInteger(frameCount) || frameCount !== expected) {
+    throw new Error('MP4 export is incomplete: received ' + frameCount + ' of ' + expected + ' frames');
+  }
+  return expected;
+}
+
 function buildFfmpegArgs({ width, height, fps, duration, outputPath, audioClips = [] }) {
   const clips = normalizeAudioClips(audioClips, duration);
   const args = [
@@ -128,4 +142,4 @@ function createFfmpegFrameExporter({ executable, outputPath, width, height, fps,
   };
 }
 
-module.exports = { MAX_FRAME_BYTES, validateExportSpec, normalizeAudioClips, buildFfmpegArgs, createFfmpegFrameExporter };
+module.exports = { MAX_FRAME_BYTES, validateExportSpec, expectedFrameCount, validateCompletedFrameCount, normalizeAudioClips, buildFfmpegArgs, createFfmpegFrameExporter };
