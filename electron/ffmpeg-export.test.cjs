@@ -21,6 +21,7 @@ function fakeSpawn(captured) {
 test('validates dimensions, frame rate, and memory bounds', () => {
   assert.equal(validateExportSpec({ width: 1920, height: 1080, fps: 30 }).frameBytes, 1920 * 1080 * 4);
   assert.throws(() => validateExportSpec({ width: 15, height: 1080, fps: 30 }), /width/);
+  assert.throws(() => validateExportSpec({ width: 1919, height: 1080, fps: 30 }), /even width and height/);
   assert.throws(() => validateExportSpec({ width: 1920, height: 1080, fps: 61 }), /frame rate/);
   assert.throws(() => validateExportSpec({ width: 8192, height: 8192, fps: 30 }), /too large/);
 });
