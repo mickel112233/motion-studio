@@ -62,6 +62,7 @@ export default function App() {
   const latestProjectRef = useRef(project);
   latestProjectRef.current = project;
   const autosavePromiseRef = useRef<Promise<{ saved: boolean; recovery?: boolean; conflict?: boolean; filePath?: string; data?: unknown }> | null>(null);
+  const userProjectActionRef = useRef(false);
   const [selected, setSelected] = useState(project.layers[1]?.id ?? '');
   const [currentTime, setCurrentTime] = useState(1.25);
   const [playing, setPlaying] = useState(false);
@@ -91,6 +92,7 @@ export default function App() {
   const selectedKeyframe = selectedLayer?.keyframes.find(k => Math.abs(k.time - currentTime) < (1 / project.fps) / 2);
 
   const updateLayer = useCallback((id: string, patch: Partial<Layer>) => {
+    userProjectActionRef.current = true;
     setHistory(h => [...h.slice(-39), project]); setFuture([]);
     setProject(p => ({ ...p, layers: p.layers.map(l => {
       if (l.id !== id) return l;
@@ -104,6 +106,7 @@ export default function App() {
     setIsDirty(true); setStatus('Unsaved changes');
   }, [project]);
   const updateProject = (updater: (value: Project) => Project) => {
+    userProjectActionRef.current = true;
     setHistory(h => [...h.slice(-39), project]); setFuture([]);
     setProject(updater(project)); setIsDirty(true); setStatus('Unsaved changes');
   };
@@ -193,7 +196,7 @@ export default function App() {
     if (!api) return;
     let cancelled = false;
     void api.getRecoveryProject().then(result => {
-      if (cancelled || !result.available || !result.data) return;
+      if (cancelled || userProjectActionRef.current || !result.available || !result.data) return;
       if (!isValidProject(result.data)) { void api.discardRecoveryProject(); return; }
       const when = result.modifiedAt ? new Date(result.modifiedAt).toLocaleString() : 'an earlier session';
       if (window.confirm(`A recovery snapshot from ${when} was found. Restore it? Choose Cancel to discard the recovery snapshot.`)) {
@@ -268,6 +271,7 @@ export default function App() {
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
   });
   const save = async () => {
+    userProjectActionRef.current = true;
     const conflictRevision = conflictRevisionRef.current;
     if (autosavePromiseRef.current) await autosavePromiseRef.current.catch(() => undefined);
     if (conflictRevisionRef.current !== conflictRevision) return;
@@ -290,6 +294,7 @@ export default function App() {
     }
   };
   const saveAs = async () => {
+    userProjectActionRef.current = true;
     if (autosavePromiseRef.current) await autosavePromiseRef.current.catch(() => undefined);
     const data = { ...latestProjectRef.current, savedAt: new Date().toISOString(), schemaVersion: 1 };
     if (window.motionStudio) {
@@ -304,6 +309,7 @@ export default function App() {
     }
   };
   const open = async () => {
+    userProjectActionRef.current = true;
     if (isDirty && !window.confirm('Open another project and discard your unsaved changes?')) return;
     if (!window.motionStudio) { fileInput.current?.click(); return; }
     try {
@@ -316,6 +322,7 @@ export default function App() {
     }
   };
   const openBrowserProject = async (file: File) => {
+    userProjectActionRef.current = true;
     if (isDirty && !window.confirm('Open this project and discard your unsaved changes?')) return;
     try {
       const data: unknown = JSON.parse(await file.text());
