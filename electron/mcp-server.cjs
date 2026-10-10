@@ -40,7 +40,7 @@ function validate(p) {
     if (l.muted !== undefined) fail(typeof l.muted === 'boolean', 'Invalid layer mute state: ' + l.id);
     for (const key of ['transitionIn','transitionOut']) if (l[key] !== undefined) {
       const t = l[key]; fail(t && typeof t === 'object' && !Array.isArray(t) && ['none','fade','wipe-left','wipe-right','zoom'].includes(t.type), 'Invalid '+key+' type: '+l.id);
-      num(t.duration, key+' duration', 0, Math.min(30,l.duration));
+      num(t.duration, key+' duration', 0, 30);
     }
     if (l.mask !== undefined) fail(l.mask && typeof l.mask === 'object' && !Array.isArray(l.mask) && ['none','rectangle','ellipse'].includes(l.mask.type) && numeric(l.mask.inset) && l.mask.inset >= 0 && l.mask.inset <= 45, 'Invalid mask: '+l.id);
     if (l.colorGrade !== undefined) {
