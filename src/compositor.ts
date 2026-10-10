@@ -20,8 +20,8 @@ export function cssEffectFilter(effects: RenderLayer['effects'], shadowColor = '
     filters.push(`contrast(${Math.max(0, Math.min(200, grade.contrast))}%)`);
     filters.push(`saturate(${Math.max(0, Math.min(200, grade.saturation))}%)`);
     if (grade.temperature > 0) filters.push(`sepia(${Math.min(50, grade.temperature * .5)}%)`);
-    if (grade.temperature < 0) filters.push(`hue-rotate(${Math.min(18, Math.abs(grade.temperature) * .18)}deg)`);
-    if (grade.tint) filters.push(`hue-rotate(${Math.max(-18, Math.min(18, grade.tint * .18))}deg)`);
+    if (grade.temperature < 0) filters.push(`hue-rotate(${Math.min(18, Math.round(Math.abs(grade.temperature) * .18 * 10) / 10)}deg)`);
+    if (grade.tint) filters.push(`hue-rotate(${Math.max(-18, Math.min(18, Math.round(grade.tint * .18 * 10) / 10))}deg)`);
   }
   if (!effects?.length) return filters.join(' ') || 'none';
   filters.push(...effects.filter(effect => effect.enabled && Number.isFinite(effect.value)).map(effect => {
