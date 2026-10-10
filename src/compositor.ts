@@ -1,17 +1,30 @@
-import { evaluateTransform, isLayerActive } from './animation';
+import { evaluateTransform, isLayerActive, evaluateClipPresentation } from './animation';
 
 export type RenderLayer = {
   id: string; name: string; kind: 'text' | 'shape' | 'image' | 'video' | 'audio';
   color: string; visible: boolean; start: number; duration: number;
   x: number; y: number; scale: number; rotation: number; opacity: number;
   text?: string; assetUrl?: string; volume?: number; muted?: boolean; effects?: { id: string; type: 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow'; enabled: boolean; value: number }[];
+  transitionIn?: { type: 'none' | 'fade' | 'wipe-left' | 'wipe-right' | 'zoom'; duration: number };
+  transitionOut?: { type: 'none' | 'fade' | 'wipe-left' | 'wipe-right' | 'zoom'; duration: number };
+  mask?: { type: 'none' | 'rectangle' | 'ellipse'; inset: number };
+  colorGrade?: { exposure: number; contrast: number; saturation: number; temperature: number; tint: number };
   keyframes?: { time: number; x: number; y: number; scale: number; rotation: number; opacity: number; easing?: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'hold' }[];
 };
 export type RenderProject = { name: string; width: number; height: number; fps: number; duration: number; layers: RenderLayer[] };
 
-export function cssEffectFilter(effects: RenderLayer['effects'], shadowColor = '#a78bfa'): string {
-  if (!effects?.length) return 'none';
-  return effects.filter(effect => effect.enabled && Number.isFinite(effect.value)).map(effect => {
+export function cssEffectFilter(effects: RenderLayer['effects'], shadowColor = '#a78bfa', grade?: RenderLayer['colorGrade']): string {
+  const filters: string[] = [];
+  if (grade) {
+    filters.push(`brightness(${Math.max(6.25, Math.min(1600, 100 * Math.pow(2, grade.exposure)))}%)`);
+    filters.push(`contrast(${Math.max(0, Math.min(200, grade.contrast))}%)`);
+    filters.push(`saturate(${Math.max(0, Math.min(200, grade.saturation))}%)`);
+    if (grade.temperature > 0) filters.push(`sepia(${Math.min(50, grade.temperature * .5)}%)`);
+    if (grade.temperature < 0) filters.push(`hue-rotate(${Math.min(18, Math.abs(grade.temperature) * .18)}deg)`);
+    if (grade.tint) filters.push(`hue-rotate(${Math.max(-18, Math.min(18, grade.tint * .18))}deg)`);
+  }
+  if (!effects?.length) return filters.join(' ') || 'none';
+  filters.push(...effects.filter(effect => effect.enabled && Number.isFinite(effect.value)).map(effect => {
     const v = Math.max(0, effect.value);
     switch (effect.type) {
       case 'blur': return `blur(${Math.min(40, v)}px)`;
@@ -24,7 +37,8 @@ export function cssEffectFilter(effects: RenderLayer['effects'], shadowColor = '
       case 'drop-shadow': return `drop-shadow(0 0 ${Math.min(50, v)}px ${shadowColor})`;
       default: return '';
     }
-  }).filter(Boolean).join(' ') || 'none';
+  }).filter(Boolean));
+  return filters.join(' ') || 'none';
 }
 
 const assets = new Map<string, HTMLImageElement | HTMLVideoElement>();
@@ -94,12 +108,15 @@ export async function drawComposition(canvas: HTMLCanvasElement, project: Render
   for (const layer of project.layers) {
     if (!layer.visible || !isLayerActive(layer, time) || layer.kind === 'audio') continue;
     const transform = evaluateTransform(layer, time);
+    const presentation = evaluateClipPresentation(layer, time);
     ctx.save();
-    ctx.globalAlpha = Math.max(0, Math.min(1, transform.opacity / 100));
-    ctx.filter = cssEffectFilter(layer.effects, layer.color);
+    ctx.globalAlpha = Math.max(0, Math.min(1, transform.opacity / 100)) * presentation.opacity;
+    ctx.filter = cssEffectFilter(layer.effects, layer.color, layer.colorGrade);
     ctx.translate(project.width / 2 + transform.x, project.height / 2 + transform.y);
     ctx.rotate(transform.rotation * Math.PI / 180);
-    ctx.scale(transform.scale, transform.scale);
+    ctx.scale(transform.scale * presentation.scale, transform.scale * presentation.scale);
+    if (layer.mask?.type === 'rectangle') { const inset = layer.mask.inset / 100; ctx.beginPath(); ctx.rect(-project.width * (0.45 - inset), -project.height * (0.4 - inset), project.width * (0.9 - 2 * inset), project.height * (0.8 - 2 * inset)); ctx.clip(); }
+    if (layer.mask?.type === 'ellipse') { const inset = layer.mask.inset / 100; ctx.beginPath(); ctx.ellipse(0, 0, project.width * (0.45 - inset), project.height * (0.4 - inset), 0, 0, Math.PI * 2); ctx.clip(); }
     if (layer.kind === 'text') {
       ctx.fillStyle = '#f4f2ff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '700 106px "DM Sans", sans-serif';
