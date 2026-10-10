@@ -21,7 +21,7 @@ Open the **Agents** inspector tab, add a provider, choose its API type, set the 
 - Import local image, video and audio files into the project layer list; control audio volume and mute state.
 - Playhead-synchronized video and audio preview with source audio controls.
 - Validated project open/save, Save As, atomic desktop writes, debounced autosave, recovery snapshots, external-file conflict detection that preserves the saved baseline until an external version is explicitly accepted, and a versioned project schema that upgrades legacy unversioned files to v1 in memory.
-- Export a rendered PNG frame or an animated WebM video from the canvas compositor (up to 120 seconds in this beta).
+- Export a rendered PNG frame or animated WebM video from the canvas compositor (up to 120 seconds in this beta); MP4 is offered only when the current runtime advertises a compatible MediaRecorder encoder.
 - Undo/redo, visibility and locking controls, animated transform keyframes with linear/ease-in/ease-out/ease-in-out/hold interpolation, and editable outgoing easing.
 - Windows NSIS packaging configuration.
 - **MCP server for external agents** to inspect/validate projects, create/update/duplicate/reorder/delete layers, change composition settings, set live effect stacks, and edit keyframes including easing.
