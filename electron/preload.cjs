@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('motionStudio', {
     return () => ipcRenderer.removeListener('project:external-change', listener);
   },
   getExportCapabilities: () => ipcRenderer.invoke('export:capabilities'),
+  beginFfmpegExport: (spec) => ipcRenderer.invoke('export:ffmpeg-begin', spec),
+  writeFfmpegFrame: (input) => ipcRenderer.invoke('export:ffmpeg-frame', input),
+  finishFfmpegExport: (input) => ipcRenderer.invoke('export:ffmpeg-finish', input),
+  cancelFfmpegExport: (input) => ipcRenderer.invoke('export:ffmpeg-cancel', input),
   listProviders: () => ipcRenderer.invoke('providers:list'),
   saveProvider: (provider) => ipcRenderer.invoke('providers:save', provider),
   deleteProvider: (id) => ipcRenderer.invoke('providers:delete', id),
