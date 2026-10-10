@@ -10,7 +10,9 @@ Motion Studio includes a local Model Context Protocol (MCP) server for compatibl
 - `layers.create` — create text, shape, image, video or audio layers.
 - `layers.update` — edit whitelisted layer properties; locked layers require explicit unlocking.
 - `layers.delete` — destructive action requiring `confirm: true`; locked layers cannot be deleted.
-- `layers.add_keyframe` — add or replace a transform keyframe.
+- `layers.add_keyframe` — add or replace a transform keyframe, including linear, ease-in, ease-out, ease-in-out or hold easing.
+- `layers.duplicate` — duplicate a layer with optional position/time offsets.
+- `layers.reorder` — move a layer to a stack index.
 - `project.update_settings` — update composition name, dimensions, FPS and duration.
 - Resource `motion-studio://project` — read project JSON.
 - Prompt `create_motion_sequence` — a guided project-aware editing workflow.
@@ -51,4 +53,4 @@ For multi-agent workflows, assign explicit roles: a director/planner creates the
 
 The server reads and writes only the one configured project JSON file. Tool arguments cannot choose arbitrary filesystem paths, run shell commands or access the network. Changes are written atomically, and projects larger than 20 MB are rejected. Nevertheless, connected agents can alter your configured project, so only connect trusted MCP clients and keep backups.
 
-MCP currently edits the saved project file. It does not synchronize unsaved editor changes or live-refresh an already-open editor. Save before agent work, then reopen or reload after edits. The current editor foundation stores keyframes but does not yet implement full animation interpolation, professional effect processing, audio mixing or final video export. MCP is a project-editing bridge, not a renderer.
+MCP edits the saved project file. The desktop app watches the active project for external file changes and can reload agent edits; if the editor has unsaved changes, it asks before discarding them and blocks overwriting until the conflict is resolved. Animation keyframes interpolate in the preview, and the editor can export animated WebM video from the canvas renderer. This is an early renderer: advanced effects, audio mixing and production-grade color management are not implemented, and WebM export is limited to 120 seconds in this beta. MCP is a project-editing bridge, not an autonomous rendering agent.
