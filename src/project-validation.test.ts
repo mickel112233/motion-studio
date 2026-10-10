@@ -24,7 +24,7 @@ describe('project file validation', () => {
   it('rejects unsupported layer kinds and easing values', () => {
     const p = validProject(); (p.layers[0] as {kind:string}).kind = 'script';
     expect(isValidProject(p)).toBe(false);
-    const q = validProject(); (q.layers[0].keyframes[0] as {easing:string}).easing = 'teleport';
+    const q = validProject(); (q.layers[0].keyframes[0] as unknown as {easing:string}).easing = 'teleport';
     expect(isValidProject(q)).toBe(false);
   });
   it('rejects malformed keyframe times', () => {
