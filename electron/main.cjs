@@ -263,7 +263,7 @@ app.whenReady().then(() => {
     let embeddedAudioCount = 0;
     for (const clip of suppliedVideoAudio) {
       const clipPath = await resolveLocalMedia(clip);
-      if (!clipPath || !probeAudioStream({ ffmpegPath: runtime.executable, filePath: clipPath })) continue;
+      if (!clipPath || !await probeAudioStream({ ffmpegPath: runtime.executable, filePath: clipPath })) continue;
       audioClips.push({ path: clipPath, start: clip.start, duration: clip.duration, volume: clip.volume, fadeIn: clip.fadeIn, fadeOut: clip.fadeOut });
       embeddedAudioCount += 1;
     }
