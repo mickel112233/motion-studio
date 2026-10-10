@@ -2,7 +2,7 @@ import { isValidProject, type ValidatedProject, type ValidatedLayer } from './pr
 
 export type EditPatch = Partial<Pick<ValidatedLayer,
   'name' | 'start' | 'duration' | 'x' | 'y' | 'scale' | 'rotation' | 'opacity' |
-  'text' | 'color' | 'visible' | 'volume' | 'muted' | 'effects'
+  'text' | 'color' | 'visible' | 'volume' | 'muted' | 'effects' | 'transitionIn' | 'transitionOut' | 'mask' | 'colorGrade'
 >>;
 export type AiEditOperation =
   | { type: 'update-layer'; layerId: string; patch: EditPatch; reason?: string }
@@ -16,7 +16,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v =
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const text = (v: unknown, max = 200) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
 const color = (v: unknown) => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
-const allowedLayerPatch = new Set(['name','start','duration','x','y','scale','rotation','opacity','text','color','visible','volume','muted','effects']);
+const allowedLayerPatch = new Set(['name','start','duration','x','y','scale','rotation','opacity','text','color','visible','volume','muted','effects','transitionIn','transitionOut','mask','colorGrade']);
 const allowedProjectPatch = new Set(['name','width','height','fps','duration']);
 
 export function parseAiEditPlan(raw: string): PlanValidation {
@@ -45,6 +45,14 @@ export function parseAiEditPlan(raw: string): PlanValidation {
         if (['visible','muted'].includes(key) && typeof v !== 'boolean') errors.push(`${label}: ${key} must be boolean.`);
         if (['start','duration','x','y','scale','rotation','opacity','volume'].includes(key) && !finite(v)) errors.push(`${label}: ${key} must be finite.`);
         if (key === 'effects' && !Array.isArray(v)) errors.push(`${label}: effects must be an array.`);
+        if (key === 'transitionIn' || key === 'transitionOut') {
+          if (!isRecord(v) || !['none','fade','wipe-left','wipe-right','zoom'].includes(String(v.type)) || !finite(v.duration) || v.duration < 0 || v.duration > 30) errors.push(`${label}: ${key} must contain a supported transition type and duration from 0 to 30 seconds.`);
+        }
+        if (key === 'mask' && (!isRecord(v) || !['none','rectangle','ellipse'].includes(String(v.type)) || !finite(v.inset) || v.inset < 0 || v.inset > 45)) errors.push(`${label}: mask must be none, rectangle or ellipse with inset from 0 to 45.`);
+        if (key === 'colorGrade') {
+          const gradeLimits: Record<string, [number, number]> = { exposure: [-4,4], contrast: [0,200], saturation: [0,200], temperature: [-100,100], tint: [-100,100] };
+          if (!isRecord(v) || Object.entries(gradeLimits).some(([field, [min,max]]) => !finite(v[field]) || (v[field] as number) < min || (v[field] as number) > max)) errors.push(`${label}: colorGrade contains missing or out-of-range values.`);
+        }
       }
       const p = op.patch as Record<string, unknown>;
       if (finite(p.start) && (p.start < 0 || p.start > 86400)) errors.push(`${label}: start is outside the supported range.`);
