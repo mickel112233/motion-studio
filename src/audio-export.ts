@@ -24,7 +24,7 @@ function waitUntilPlayable(audio: HTMLAudioElement): Promise<void> {
 }
 
 export async function createAudioExportSession(layers: RenderLayer[]): Promise<AudioExportSession | undefined> {
-  const clips = layers.filter(layer => layer.kind === 'audio' && layer.visible && layer.assetUrl && !layer.muted && (layer.volume ?? 100) > 0);
+  const clips = layers.filter(layer => (layer.kind === 'audio' || layer.kind === 'video') && layer.visible && layer.assetUrl && !layer.muted && (layer.volume ?? 100) > 0);
   if (!clips.length) return undefined;
   const context = new AudioContext();
   const destination = context.createMediaStreamDestination();
