@@ -429,7 +429,8 @@ export default function App() {
       let sessionId: string | undefined;
       try {
         const audioClips = project.layers.filter(layer => layer.kind === 'audio' && layer.visible && !layer.muted && (layer.volume ?? 100) > 0 && layer.assetUrl).map(layer => ({ url: layer.assetUrl!, start: layer.start, duration: layer.duration, volume: layer.volume ?? 100, fadeIn: layer.audioFadeIn ?? 0, fadeOut: layer.audioFadeOut ?? 0 }));
-        const started = await window.motionStudio.beginFfmpegExport({ width: canvas.width, height: canvas.height, fps, duration: project.duration, audioClips });
+        const videoAudioClips = project.layers.filter(layer => layer.kind === 'video' && layer.visible && !layer.muted && (layer.volume ?? 100) > 0 && layer.assetUrl).map(layer => ({ url: layer.assetUrl!, start: layer.start, duration: layer.duration, volume: layer.volume ?? 100, fadeIn: layer.audioFadeIn ?? 0, fadeOut: layer.audioFadeOut ?? 0 }));
+        const started = await window.motionStudio.beginFfmpegExport({ width: canvas.width, height: canvas.height, fps, duration: project.duration, audioClips, videoAudioClips });
         if (started.canceled) { setStatus('MP4 export cancelled'); return; }
         sessionId = started.id;
         const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -448,7 +449,7 @@ export default function App() {
         }
         const result = await window.motionStudio.finishFfmpegExport({ id: sessionId });
         sessionId = undefined;
-        setStatus(`MP4 exported: ${result.framesWritten} frames at ${fps} FPS${result.audioClipCount ? ` with ${result.audioClipCount} audio clips` : '. No compatible local-file audio clips were included'}.`);
+        setStatus(`MP4 exported: ${result.framesWritten} frames at ${fps} FPS${result.audioClipCount ? ` with ${result.audioClipCount} audio clips${result.embeddedAudioCount ? `, including ${result.embeddedAudioCount} video source${result.embeddedAudioCount === 1 ? '' : 's'}` : ''}` : '. No compatible local-file audio clips were included'}.`);
       } catch (error) {
         if (sessionId) await window.motionStudio.cancelFfmpegExport({ id: sessionId }).catch(() => {});
         sessionId = undefined;
