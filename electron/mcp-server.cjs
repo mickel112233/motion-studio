@@ -35,6 +35,16 @@ function validate(p) {
     fail(l.start >= 0 && l.duration > 0 && l.scale > 0 && l.opacity >= 0 && l.opacity <= 100, 'Layer transform or timing out of range: ' + l.id);
     fail(l.start <= p.duration, 'Layer starts after composition duration: ' + l.id);
     fail(typeof l.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(l.color), 'Invalid layer color: ' + l.id);
+    if (l.effects !== undefined) {
+      const limits = { blur:40, brightness:300, contrast:300, saturate:300, grayscale:100, sepia:100, 'hue-rotate':360, 'drop-shadow':50 };
+      fail(Array.isArray(l.effects) && l.effects.length <= 64, 'Invalid effects: ' + l.id);
+      const effectIds = new Set();
+      for (const effect of l.effects) {
+        fail(effect && typeof effect.id === 'string' && effect.id.length > 0 && !effectIds.has(effect.id), 'Invalid or duplicate effect ID: ' + l.id);
+        effectIds.add(effect.id);
+        fail(Object.hasOwn(limits,effect.type) && typeof effect.enabled === 'boolean' && numeric(effect.value) && effect.value >= 0 && effect.value <= limits[effect.type], 'Invalid effect value: ' + l.id);
+      }
+    }
     fail(l.keyframes === undefined || (Array.isArray(l.keyframes) && l.keyframes.length <= 10000), 'Invalid keyframes: ' + l.id);
     for (const k of l.keyframes || []) {
       fail(k && numeric(k.time) && k.time >= 0 && k.time <= p.duration, 'Invalid keyframe time: ' + l.id);
@@ -84,7 +94,7 @@ async function callTool(name, a) {
       value = p.layers.map(l => { const x = { ...l }; if (!a.includeKeyframes) delete x.keyframes; return x; }); break;
     case 'layers.create': {
       const kind = a.kind; fail(['text','shape','image','video','audio'].includes(kind), 'Unsupported layer kind');
-      const l = { id:'agent_' + crypto.randomBytes(6).toString('hex'), name:str(a.name,'name'), kind, color:a.color || '#a78bfa', visible:true, locked:false, start:a.start === undefined ? 0 : num(a.start,'start',0,p.duration), duration:a.duration === undefined ? 8 : num(a.duration,'duration',.01,86400), x:a.x === undefined ? 0 : num(a.x,'x',-100000,100000), y:a.y === undefined ? 0 : num(a.y,'y',-100000,100000), scale:1, rotation:0, opacity:100, keyframes:[{time:a.start === undefined ? 0 : a.start,x:a.x === undefined ? 0 : a.x,y:a.y === undefined ? 0 : a.y,scale:1,rotation:0,opacity:100}] };
+      const l = { id:'agent_' + crypto.randomBytes(6).toString('hex'), name:str(a.name,'name'), kind, color:a.color || '#a78bfa', visible:true, locked:false, start:a.start === undefined ? 0 : num(a.start,'start',0,p.duration), duration:a.duration === undefined ? 8 : num(a.duration,'duration',.01,86400), x:a.x === undefined ? 0 : num(a.x,'x',-100000,100000), y:a.y === undefined ? 0 : num(a.y,'y',-100000,100000), scale:1, rotation:0, opacity:100, effects:[], keyframes:[{time:a.start === undefined ? 0 : a.start,x:a.x === undefined ? 0 : a.x,y:a.y === undefined ? 0 : a.y,scale:1,rotation:0,opacity:100}] };
       if (a.color !== undefined) fail(/^#[0-9a-fA-F]{6}$/.test(a.color), 'Invalid hex color');
       if (a.text !== undefined) l.text = str(a.text,'text',10000); else if (kind === 'text') l.text = 'New text';
       p.layers.push(l); value = l; changed = true; break;
