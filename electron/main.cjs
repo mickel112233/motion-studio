@@ -235,11 +235,11 @@ function createWindow() {
 }
 app.whenReady().then(() => {
 
-  ipcMain.handle('export:capabilities', async () => ({ ffmpeg: inspectFfmpeg() }));
+  ipcMain.handle('export:capabilities', async () => ({ ffmpeg: inspectFfmpeg({ resourcesPath: process.resourcesPath, appPath: app.getAppPath() }) }));
 
   ipcMain.handle('export:ffmpeg-begin', async (_event, input) => {
     if (ffmpegExportSession) throw new Error('Another FFmpeg export is already running');
-    const runtime = inspectFfmpeg();
+    const runtime = inspectFfmpeg({ resourcesPath: process.resourcesPath, appPath: app.getAppPath() });
     if (!runtime.available) throw new Error(runtime.message || 'FFmpeg is unavailable');
     const spec = validateExportSpec({ width: input?.width, height: input?.height, fps: input?.fps });
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
