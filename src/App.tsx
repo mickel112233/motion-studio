@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { evaluateTransform, isLayerActive, type Easing } from './animation';
 import { cssEffectFilter, drawComposition } from './compositor';
 import { createAudioExportSession, type AudioExportSession } from './audio-export';
@@ -100,7 +100,7 @@ export default function App() {
     setHistory(h => [...h.slice(-39), project]); setFuture([]);
     setProject(updater(project)); setIsDirty(true); setStatus('Unsaved changes');
   };
-  const beginTimelineDrag = (event: React.PointerEvent<HTMLDivElement>, layer: Layer) => {
+  const beginTimelineDrag = (event: ReactPointerEvent<HTMLDivElement>, layer: Layer) => {
     if (layer.locked) return;
     const trackWidth = event.currentTarget.parentElement?.getBoundingClientRect().width ?? 0;
     if (trackWidth <= 0) return;
@@ -110,7 +110,7 @@ export default function App() {
     timelineDragRef.current = { id: layer.id, startX: event.clientX, originalStart: layer.start, previewStart: layer.start, trackWidth, pointerId: event.pointerId };
     setSelected(layer.id); setDragPreview({ id: layer.id, start: layer.start });
   };
-  const moveTimelineDrag = (event: React.PointerEvent<HTMLDivElement>, layer: Layer) => {
+  const moveTimelineDrag = (event: ReactPointerEvent<HTMLDivElement>, layer: Layer) => {
     const drag = timelineDragRef.current;
     if (!drag || drag.id !== layer.id || drag.pointerId !== event.pointerId) return;
     const maxStart = Math.max(0, project.duration - layer.duration);
@@ -119,7 +119,7 @@ export default function App() {
     drag.previewStart = start;
     setDragPreview({ id: layer.id, start });
   };
-  const finishTimelineDrag = (event: React.PointerEvent<HTMLDivElement>, layer: Layer) => {
+  const finishTimelineDrag = (event: ReactPointerEvent<HTMLDivElement>, layer: Layer) => {
     const drag = timelineDragRef.current;
     if (!drag || drag.id !== layer.id || drag.pointerId !== event.pointerId) return;
     timelineDragRef.current = null; setDragPreview(null);
