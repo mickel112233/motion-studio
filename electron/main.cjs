@@ -274,7 +274,7 @@ app.whenReady().then(() => {
     });
     const id = crypto.randomUUID();
     ffmpegExportSession = { id, exporter, outputPath: filePath, frameCount: 0, duration };
-    return { canceled: false, id, outputPath: filePath };
+    return { canceled: false, id, outputPath: filePath, audioClipCount: audioClips.length };
   });
 
   ipcMain.handle('export:ffmpeg-frame', async (_event, input) => {
