@@ -1,6 +1,6 @@
 const path = require('node:path');
 const fs = require('node:fs');
-const { spawnSync } = require('node:child_process');
+const { spawnSync, spawn } = require('node:child_process');
 
 function binaryName(platform = process.platform) {
   return platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
@@ -24,7 +24,7 @@ function candidatePaths({ platform = process.platform, resourcesPath = process.r
   return [...new Set(candidates)];
 }
 
-function probeAudioStream({ ffmpegPath, filePath, platform = process.platform, env = process.env, existsSync = fs.existsSync, spawnSync: run = spawnSync } = {}) {
+async function probeAudioStream({ ffmpegPath, filePath, platform = process.platform, env = process.env, existsSync = fs.existsSync, spawnImpl = spawn } = {}) {
   if (typeof ffmpegPath !== 'string' || !ffmpegPath || typeof filePath !== 'string' || !filePath) return false;
   const pathApi = platform === 'win32' ? path.win32 : path.posix;
   const probeName = platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
@@ -33,10 +33,32 @@ function probeAudioStream({ ffmpegPath, filePath, platform = process.platform, e
   for (const entry of (env.PATH || '').split(delimiter).filter(Boolean)) candidates.push(pathApi.join(entry, probeName));
   for (const executable of [...new Set(candidates)]) {
     if (!existsSync(executable)) continue;
-    const result = run(executable, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=index', '-of', 'csv=p=0', filePath], {
-      encoding: 'utf8', windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024, shell: false
+    const hasAudio = await new Promise(resolve => {
+      let child;
+      let stdout = '';
+      let settled = false;
+      const finish = value => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(value);
+      };
+      const timeout = setTimeout(() => {
+        child?.kill();
+        finish(false);
+      }, 3000);
+      try {
+        child = spawnImpl(executable, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=index', '-of', 'csv=p=0', filePath], {
+          windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'], shell: false
+        });
+        child.stdout?.on('data', chunk => { stdout = (stdout + chunk.toString()).slice(-4096); });
+        child.on('error', () => finish(false));
+        child.on('close', code => finish(code === 0 && Boolean(stdout.trim())));
+      } catch {
+        finish(false);
+      }
     });
-    if (!result.error && result.status === 0 && String(result.stdout || '').trim()) return true;
+    if (hasAudio) return true;
   }
   return false;
 }
