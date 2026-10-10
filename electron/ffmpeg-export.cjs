@@ -40,6 +40,7 @@ function createFfmpegFrameExporter({ executable, outputPath, width, height, fps,
       else resolve();
     });
   });
+  completion.catch(() => {});
 
   return {
     spec,
