@@ -77,6 +77,8 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const [exportingVideo, setExportingVideo] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [exportFormat, setExportFormat] = useState<'webm' | 'mp4'>('webm');
+  const supportsMp4Export = typeof MediaRecorder !== 'undefined' && ['video/mp4;codecs=avc1.42E01E','video/mp4'].some(type => MediaRecorder.isTypeSupported(type));
   const [externalConflict, setExternalConflict] = useState(false);
   const externalConflictRef = useRef(externalConflict);
   externalConflictRef.current = externalConflict;
@@ -423,8 +425,10 @@ export default function App() {
       let recordingStream: MediaStream = canvasStream;
       audioSession = await createAudioExportSession(project.layers);
       if (audioSession) { recordingStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioSession.stream.getAudioTracks()]); stream = recordingStream; }
-      const mimeType = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(type => MediaRecorder.isTypeSupported(type));
-      recorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : undefined);
+      const mimeCandidates = exportFormat === 'mp4' ? ['video/mp4;codecs=avc1.42E01E','video/mp4'] : ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+      const mimeType = mimeCandidates.find(type => MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw new Error(exportFormat === 'mp4' ? 'MP4 encoding is not supported by this runtime. Choose WebM or use an FFmpeg-enabled build.' : 'WebM encoding is not supported by this runtime.');
+      recorder = new MediaRecorder(recordingStream, { mimeType });
       const recorded = new Promise<Blob>((resolve, reject) => {
         const chunks: BlobPart[] = [];
         recorder!.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data); };
@@ -455,10 +459,11 @@ export default function App() {
       if (!blob.size) throw new Error('The encoder produced an empty video');
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.webm`;
+      const outputFormat = blob.type.includes('mp4') ? 'mp4' : 'webm';
+      a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}. ${outputFormat}`.replace('. ', '.');
       a.href = url; a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 5000);
-      setStatus(`Video exported as WebM (${fps} FPS${audioSession ? ', audio mixed' : ''})`);
+      setStatus(`Video exported as ${outputFormat.toUpperCase()} (${fps} FPS${audioSession ? ', audio mixed' : ''})`);
     } catch (error) {
       if (recorder && recorder.state !== 'inactive') recorder.stop();
       setStatus(error instanceof Error ? 'Video export failed: ' + error.message : 'Video export failed');
@@ -518,7 +523,7 @@ export default function App() {
         <button className="secondary-btn" onClick={() => void open()}><FolderOpen size={15}/> Open</button>
         <button className="secondary-btn" onClick={() => void save()}><Save size={15}/> Save</button>
         <button className="secondary-btn" onClick={() => void saveAs()}><Save size={15}/> Save As</button>
-        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><button className="primary-btn" onClick={() => { if (exportingVideo) exportCancelRef.current = true; else void exportVideo(); }}>{exportingVideo ? <><Film size={15}/> Cancel {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
+        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><select className="export-format-select" aria-label="Video export format" value={exportFormat} disabled={exportingVideo} onChange={e=>setExportFormat(e.target.value as 'webm'|'mp4')}><option value="webm">WebM</option><option value="mp4" disabled={!supportsMp4Export}>MP4 {!supportsMp4Export?'(unsupported here)':''}</option></select><button className="primary-btn" onClick={() => { if (exportingVideo) exportCancelRef.current = true; else void exportVideo(); }}>{exportingVideo ? <><Film size={15}/> Cancel {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
       </div>
     </header>
     {externalConflict && <div className="external-conflict-banner"><span><strong>External project conflict.</strong> An agent updated the saved file while you had local edits. Saving is paused to avoid overwriting the agent's work.</span><button className="secondary-btn" onClick={() => void open()}>Open / reload</button><button className="primary-btn" onClick={() => void saveAs()}>Save local copy as…</button></div>}
