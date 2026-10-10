@@ -11,7 +11,7 @@
 - Live per-layer filter stack: blur, brightness, contrast, saturation, grayscale, sepia, hue rotation and drop shadow.
 - Import local image, video and audio files into the project layer list; control audio volume and mute state.
 - Playhead-synchronized video and audio preview with source audio controls.
-- Validated project open/save, Save As, atomic desktop writes, debounced autosave, recovery snapshots, and external-file conflict detection.
+- Validated project open/save, Save As, atomic desktop writes, debounced autosave, recovery snapshots, and external-file conflict detection that preserves the saved baseline until an external version is explicitly accepted.
 - Export a rendered PNG frame or an animated WebM video from the canvas compositor (up to 120 seconds in this beta).
 - Undo/redo, visibility and locking controls, animated transform keyframes with linear/ease-in/ease-out/ease-in-out/hold interpolation, and editable outgoing easing.
 - Windows NSIS packaging configuration.
