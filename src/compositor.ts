@@ -4,10 +4,28 @@ export type RenderLayer = {
   id: string; name: string; kind: 'text' | 'shape' | 'image' | 'video' | 'audio';
   color: string; visible: boolean; start: number; duration: number;
   x: number; y: number; scale: number; rotation: number; opacity: number;
-  text?: string; assetUrl?: string;
+  text?: string; assetUrl?: string; effects?: { id: string; type: 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow'; enabled: boolean; value: number }[];
   keyframes?: { time: number; x: number; y: number; scale: number; rotation: number; opacity: number; easing?: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'hold' }[];
 };
 export type RenderProject = { name: string; width: number; height: number; fps: number; duration: number; layers: RenderLayer[] };
+
+export function cssEffectFilter(effects: RenderLayer['effects'], shadowColor = '#a78bfa'): string {
+  if (!effects?.length) return 'none';
+  return effects.filter(effect => effect.enabled && Number.isFinite(effect.value)).map(effect => {
+    const v = Math.max(0, effect.value);
+    switch (effect.type) {
+      case 'blur': return `blur(${Math.min(40, v)}px)`;
+      case 'brightness': return `brightness(${Math.min(300, v)}%)`;
+      case 'contrast': return `contrast(${Math.min(300, v)}%)`;
+      case 'saturate': return `saturate(${Math.min(300, v)}%)`;
+      case 'grayscale': return `grayscale(${Math.min(100, v)}%)`;
+      case 'sepia': return `sepia(${Math.min(100, v)}%)`;
+      case 'hue-rotate': return `hue-rotate(${Math.min(360, v)}deg)`;
+      case 'drop-shadow': return `drop-shadow(0 0 ${Math.min(50, v)}px ${shadowColor})`;
+      default: return '';
+    }
+  }).filter(Boolean).join(' ') || 'none';
+}
 
 const assets = new Map<string, HTMLImageElement | HTMLVideoElement>();
 
@@ -78,6 +96,7 @@ export async function drawComposition(canvas: HTMLCanvasElement, project: Render
     const transform = evaluateTransform(layer, time);
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, transform.opacity / 100));
+    ctx.filter = cssEffectFilter(layer.effects, layer.color);
     ctx.translate(project.width / 2 + transform.x, project.height / 2 + transform.y);
     ctx.rotate(transform.rotation * Math.PI / 180);
     ctx.scale(transform.scale, transform.scale);
