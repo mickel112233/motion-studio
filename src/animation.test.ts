@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { applyEasing, evaluateTransform, isLayerActive, normalizeKeyframes, type AnimatableLayer } from './animation';
 
-const layer = (overrides: Partial<AnimatableLayer> = {}) => ({
+const layer = (overrides: Partial<AnimatableLayer> = {}): AnimatableLayer => ({
   start: 0, duration: 10, x: 0, y: 10, scale: 1, rotation: 0, opacity: 100,
   keyframes: [
     { time: 0, x: 0, y: 10, scale: 1, rotation: 0, opacity: 100 },
     { time: 10, x: 100, y: 30, scale: 3, rotation: 180, opacity: 0 }
   ],
   ...overrides
-});
+} as AnimatableLayer);
 
 describe('Motion Studio animation engine', () => {
   it('interpolates all transform channels at a midpoint', () => {
