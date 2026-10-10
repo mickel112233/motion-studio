@@ -45,3 +45,10 @@
 .audio-controls input[type=checkbox]{accent-color:#a78bfa}
 .audio-controls input[type=range]{width:100%;min-width:0;accent-color:#a78bfa}
 .audio-controls>span{min-width:28px;text-align:right;font:9px 'DM Mono',monospace}
+
+.trim-handle{position:absolute;top:0;bottom:0;width:6px;z-index:3;background:#e2d7ff;border:1px solid #9e87d8;border-radius:2px;cursor:ew-resize;touch-action:none}
+.trim-start{left:0}
+.trim-end{right:0}
+.clip .trim-handle:hover{background:#fff}
+.clip>span:first-of-type{pointer-events:none;overflow:hidden;text-overflow:ellipsis}
+.keyframe{pointer-events:none}
