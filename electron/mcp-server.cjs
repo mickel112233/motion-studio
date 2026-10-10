@@ -38,6 +38,15 @@ function validate(p) {
     fail(typeof l.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(l.color), 'Invalid layer color: ' + l.id);
     if (l.volume !== undefined) fail(numeric(l.volume) && l.volume >= 0 && l.volume <= 100, 'Invalid layer volume: ' + l.id);
     if (l.muted !== undefined) fail(typeof l.muted === 'boolean', 'Invalid layer mute state: ' + l.id);
+    for (const key of ['transitionIn','transitionOut']) if (l[key] !== undefined) {
+      const t = l[key]; fail(t && typeof t === 'object' && !Array.isArray(t) && ['none','fade','wipe-left','wipe-right','zoom'].includes(t.type), 'Invalid '+key+' type: '+l.id);
+      num(t.duration, key+' duration', 0, Math.min(30,l.duration));
+    }
+    if (l.mask !== undefined) fail(l.mask && typeof l.mask === 'object' && !Array.isArray(l.mask) && ['none','rectangle','ellipse'].includes(l.mask.type) && numeric(l.mask.inset) && l.mask.inset >= 0 && l.mask.inset <= 45, 'Invalid mask: '+l.id);
+    if (l.colorGrade !== undefined) {
+      const g = l.colorGrade; fail(g && typeof g === 'object' && !Array.isArray(g), 'Invalid color grade: '+l.id);
+      for (const [key,min,max] of [['exposure',-4,4],['contrast',0,200],['saturation',0,200],['temperature',-100,100],['tint',-100,100]]) num(g[key], 'colorGrade.'+key, min, max);
+    }
     if (l.effects !== undefined) {
       const limits = { blur:40, brightness:300, contrast:300, saturate:300, grayscale:100, sepia:100, 'hue-rotate':360, 'drop-shadow':50 };
       fail(Array.isArray(l.effects) && l.effects.length <= 64, 'Invalid effects: ' + l.id);
@@ -77,7 +86,7 @@ const tools = [
  { name:'project.validate', description:'Validate project dimensions, layer types and unique IDs.', inputSchema:{type:'object',properties:{},additionalProperties:false} },
  { name:'layers.list', description:'List layers and their editable properties; optionally include keyframes.', inputSchema:{type:'object',properties:{includeKeyframes:{type:'boolean'}},additionalProperties:false} },
  { name:'layers.create', description:'Create a layer. Writes the configured project file.', inputSchema:{type:'object',required:['kind','name'],properties:{kind:{type:'string',enum:['text','shape','image','video','audio']},name:{type:'string',minLength:1,maxLength:160},text:{type:'string',maxLength:10000},color:{type:'string',pattern:'^#[0-9a-fA-F]{6}$'},start:{type:'number',minimum:0},duration:{type:'number',exclusiveMinimum:0},x:{type:'number'},y:{type:'number'}},additionalProperties:false} },
- { name:'layers.update', description:'Update allowed properties of an existing layer. Locked layers require unlockFirst=true.', inputSchema:{type:'object',required:['id','patch'],properties:{id:{type:'string'},unlockFirst:{type:'boolean'},patch:{type:'object',properties:{name:{type:'string',maxLength:160},color:{type:'string',pattern:'^#[0-9a-fA-F]{6}$'},visible:{type:'boolean'},locked:{type:'boolean'},start:{type:'number',minimum:0},duration:{type:'number',exclusiveMinimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0,maximum:1000},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100},volume:{type:'number',minimum:0,maximum:100},muted:{type:'boolean'},text:{type:'string',maxLength:10000}},additionalProperties:false}},additionalProperties:false} },
+ { name:'layers.update', description:'Update allowed properties of an existing layer. Locked layers require unlockFirst=true.', inputSchema:{type:'object',required:['id','patch'],properties:{id:{type:'string'},unlockFirst:{type:'boolean'},patch:{type:'object',properties:{name:{type:'string',maxLength:160},color:{type:'string',pattern:'^#[0-9a-fA-F]{6}$'},visible:{type:'boolean'},locked:{type:'boolean'},start:{type:'number',minimum:0},duration:{type:'number',exclusiveMinimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0,maximum:1000},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100},volume:{type:'number',minimum:0,maximum:100},muted:{type:'boolean'},text:{type:'string',maxLength:10000},transitionIn:{type:'object',required:['type','duration'],properties:{type:{type:'string',enum:['none','fade','wipe-left','wipe-right','zoom']},duration:{type:'number',minimum:0,maximum:30}},additionalProperties:false},transitionOut:{type:'object',required:['type','duration'],properties:{type:{type:'string',enum:['none','fade','wipe-left','wipe-right','zoom']},duration:{type:'number',minimum:0,maximum:30}},additionalProperties:false},mask:{type:'object',required:['type','inset'],properties:{type:{type:'string',enum:['none','rectangle','ellipse']},inset:{type:'number',minimum:0,maximum:45}},additionalProperties:false},colorGrade:{type:'object',required:['exposure','contrast','saturation','temperature','tint'],properties:{exposure:{type:'number',minimum:-4,maximum:4},contrast:{type:'number',minimum:0,maximum:200},saturation:{type:'number',minimum:0,maximum:200},temperature:{type:'number',minimum:-100,maximum:100},tint:{type:'number',minimum:-100,maximum:100}},additionalProperties:false}},additionalProperties:false}},additionalProperties:false} },
  { name:'layers.set_effects', description:'Replace the editable effect stack on an unlocked layer.', inputSchema:{type:'object',required:['id','effects'],properties:{id:{type:'string'},effects:{type:'array',maxItems:64,items:{type:'object',required:['type','value'],properties:{id:{type:'string',maxLength:160},type:{type:'string',enum:['blur','brightness','contrast','saturate','grayscale','sepia','hue-rotate','drop-shadow']},enabled:{type:'boolean'},value:{type:'number',minimum:0}},additionalProperties:false}}},additionalProperties:false} },
  { name:'layers.delete', description:'Destructively delete one layer; requires explicit confirm=true and layer must be unlocked.', inputSchema:{type:'object',required:['id','confirm'],properties:{id:{type:'string'},confirm:{type:'boolean',const:true}},additionalProperties:false} },
  { name:'layers.add_keyframe', description:'Add or replace an animated transform keyframe, including its outgoing easing curve.', inputSchema:{type:'object',required:['id','time'],properties:{id:{type:'string'},time:{type:'number',minimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100},easing:{type:'string',enum:['linear','ease-in','ease-out','ease-in-out','hold']}},additionalProperties:false} },
@@ -104,7 +113,7 @@ async function callTool(name, a) {
     }
     case 'layers.update': {
       const l = layer(p,str(a.id,'id',100)); fail(a.patch && typeof a.patch === 'object' && !Array.isArray(a.patch), 'patch must be an object');
-      const allowed = new Set(['name','color','visible','locked','start','duration','x','y','scale','rotation','opacity','volume','muted','text']);
+      const allowed = new Set(['name','color','visible','locked','start','duration','x','y','scale','rotation','opacity','volume','muted','text','transitionIn','transitionOut','mask','colorGrade']);
       const entries = Object.entries(a.patch); fail(entries.length > 0, 'patch cannot be empty');
       if (l.locked && !a.unlockFirst && !(entries.length === 1 && a.patch.locked === false)) throw new Error('Layer is locked; unlock it first or pass unlockFirst=true to edit it');
       for (const [k,v] of entries) {
@@ -121,6 +130,9 @@ async function callTool(name, a) {
         else if (k === 'opacity') l.opacity = num(v,k,0,100);
         else if (k === 'volume') l.volume = num(v,k,0,100);
         else if (k === 'muted') { fail(typeof v === 'boolean', 'muted must be boolean'); l.muted = v; }
+        else if (k === 'transitionIn' || k === 'transitionOut') { fail(v && typeof v === 'object' && !Array.isArray(v) && ['none','fade','wipe-left','wipe-right','zoom'].includes(v.type), 'Invalid transition'); num(v.duration,'transition duration',0,Math.min(30,l.duration)); l[k] = { type:v.type, duration:v.duration }; }
+        else if (k === 'mask') { fail(v && typeof v === 'object' && !Array.isArray(v) && ['none','rectangle','ellipse'].includes(v.type), 'Invalid mask type'); l.mask = { type:v.type, inset:num(v.inset,'mask inset',0,45) }; }
+        else if (k === 'colorGrade') { fail(v && typeof v === 'object' && !Array.isArray(v), 'Invalid color grade'); l.colorGrade = { exposure:num(v.exposure,'exposure',-4,4), contrast:num(v.contrast,'contrast',0,200), saturation:num(v.saturation,'saturation',0,200), temperature:num(v.temperature,'temperature',-100,100), tint:num(v.tint,'tint',-100,100) }; }
       }
       if (a.unlockFirst && a.patch.locked === undefined) l.locked = false;
       changed = true; value = l; break;
