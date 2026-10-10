@@ -47,7 +47,7 @@ const upsertKeyframe = (layer: Layer, time: number, transformPatch: Partial<Pick
   const frame = { time, ...transform, easing: easing ?? existing?.easing ?? ('linear' as Easing) };
   return [...layer.keyframes.filter(k => Math.abs(k.time - time) >= 1e-7), frame].sort((a,b) => a.time - b.time);
 };
-\nconst initialProject: Project = {
+const initialProject: Project = {
   name: 'Untitled Composition', width: 1920, height: 1080, fps: 30, duration: 12,
   layers: [
     { ...initialLayer('shape', 'Accent shape', 0), x: 250, y: 40, scale: 1.15, duration: 8, keyframes: [{ time: 0, x: 250, y: 40, scale: 1.15, rotation: 0, opacity: 100 }] },
