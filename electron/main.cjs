@@ -294,6 +294,7 @@ app.whenReady().then(() => {
       await session.exporter.finish();
       return { outputPath: session.outputPath, framesWritten: session.frameCount, audioClipCount: session.audioClipCount };
     } catch (error) {
+      await session.exporter.cancel().catch(() => {});
       await fs.rm(session.outputPath, { force: true }).catch(() => {});
       throw error;
     } finally {
