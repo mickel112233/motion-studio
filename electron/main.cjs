@@ -16,6 +16,7 @@ let mainWindow = null;
 
 function validateProject(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Project must be a JSON object');
+  if (data.schemaVersion !== undefined && data.schemaVersion !== 1) throw new Error('Unsupported project schema version: ' + data.schemaVersion);
   if (typeof data.name !== 'string' || !data.name.trim() || data.name.length > 200) throw new Error('Project name is invalid');
   for (const key of ['width', 'height']) if (!Number.isFinite(data[key]) || data[key] < 16 || data[key] > 16384) throw new Error(key + ' is outside the supported range');
   if (!Number.isFinite(data.fps) || data.fps < 1 || data.fps > 240) throw new Error('Frame rate is invalid');
@@ -51,11 +52,19 @@ function validateProject(data) {
   return data;
 }
 
+function migrateProject(data) {
+  validateProject(data);
+  // Files created before schema versioning are the original v1 format. Stamp the
+  // version in memory; preserve unknown/future versions as a hard error above.
+  if (data.schemaVersion === undefined) return { ...data, schemaVersion: 1 };
+  return data;
+}
+
 async function readProject(filePath) {
   const stat = await fs.stat(filePath);
   if (stat.size > MAX_PROJECT_BYTES) throw new Error('Project file exceeds 20 MB');
   const data = JSON.parse(await fs.readFile(filePath, 'utf8'));
-  return validateProject(data);
+  return migrateProject(data);
 }
 
 async function writeProject(filePath, data) {
@@ -90,7 +99,7 @@ function watchProjectFile(filePath) {
           const raw = await fs.readFile(filePath);
           const hash = hashContent(raw);
           if (hash === lastSavedHash || hash === lastNotifiedExternalHash) return;
-          const data = validateProject(JSON.parse(raw.toString('utf8')));
+          const data = migrateProject(JSON.parse(raw.toString('utf8')));
           // Do not advance lastSavedHash until the renderer explicitly accepts this version.
           // Otherwise a user who declines the reload could unknowingly overwrite agent edits.
           lastNotifiedExternalHash = hash;
@@ -120,7 +129,7 @@ async function checkExternalVersion(filePath) {
   const raw = await fs.readFile(filePath);
   const hash = hashContent(raw);
   if (!lastSavedHash || hash === lastSavedHash) return null;
-  const data = validateProject(JSON.parse(raw.toString('utf8')));
+  const data = migrateProject(JSON.parse(raw.toString('utf8')));
   return data;
 }
 
@@ -222,7 +231,7 @@ app.whenReady().then(() => {
     if (!currentProjectPath) return { accepted: false };
     const raw = await fs.readFile(currentProjectPath);
     if (raw.length > MAX_PROJECT_BYTES) throw new Error('Project file exceeds 20 MB');
-    validateProject(JSON.parse(raw.toString('utf8')));
+    migrateProject(JSON.parse(raw.toString('utf8')));
     lastSavedHash = hashContent(raw);
     lastNotifiedExternalHash = null;
     return { accepted: true, filePath: currentProjectPath };
