@@ -51,6 +51,7 @@ export default function App() {
   const [exportingVideo, setExportingVideo] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [externalConflict, setExternalConflict] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const [panel, setPanel] = useState<'project' | 'effects' | 'audio' | 'agents'>('project');
   const [tool, setTool] = useState<'select' | 'move' | 'text' | 'shape'>('select');
   const [zoom, setZoom] = useState(1);
@@ -76,11 +77,11 @@ export default function App() {
       }
       return next;
     }) }));
-    setStatus('Unsaved changes');
+    setIsDirty(true); setStatus('Unsaved changes');
   }, [project]);
   const updateProject = (updater: (value: Project) => Project) => {
     setHistory(h => [...h.slice(-39), project]); setFuture([]);
-    setProject(updater(project)); setStatus('Unsaved changes');
+    setProject(updater(project)); setIsDirty(true); setStatus('Unsaved changes');
   };
   const editTransformAtPlayhead = (layer: Layer, patch: Partial<Pick<Layer, 'x' | 'y' | 'scale' | 'rotation' | 'opacity'>>) => {
     const atKeyframe = layer.keyframes.some(k => Math.abs(k.time - currentTime) < (1 / project.fps) / 2);
@@ -91,15 +92,15 @@ export default function App() {
     const name = kind === 'text' ? 'Text layer' : kind === 'shape' ? 'Shape layer' : kind === 'audio' ? 'Audio layer' : kind === 'video' ? 'Video layer' : 'Image layer';
     const layer = initialLayer(kind, name, project.layers.length);
     setHistory(h => [...h.slice(-39), project]); setFuture([]);
-    setProject(p => ({ ...p, layers: [...p.layers, layer] })); setSelected(layer.id); setStatus('Unsaved changes');
+    setProject(p => ({ ...p, layers: [...p.layers, layer] })); setSelected(layer.id); setIsDirty(true); setStatus('Unsaved changes');
   };
   const undo = () => {
     if (!history.length) return;
-    setFuture(f => [project, ...f]); setProject(history[history.length - 1]); setHistory(h => h.slice(0, -1)); setStatus('Undo');
+    setFuture(f => [project, ...f]); setProject(history[history.length - 1]); setHistory(h => h.slice(0, -1)); setIsDirty(true); setStatus('Undo');
   };
   const redo = () => {
     if (!future.length) return;
-    setHistory(h => [...h, project]); setProject(future[0]); setFuture(f => f.slice(1)); setStatus('Redo');
+    setHistory(h => [...h, project]); setProject(future[0]); setFuture(f => f.slice(1)); setIsDirty(true); setStatus('Redo');
   };
   useEffect(() => {
     if (!playing) return;
@@ -111,15 +112,15 @@ export default function App() {
     return window.motionStudio.onProjectExternalChange(payload => {
       if (payload.error) { setStatus(payload.error); return; }
       if (!payload.data || !isValidProject(payload.data)) { setStatus('An external project edit could not be validated'); return; }
-      if ((status === 'Unsaved changes' || externalConflict) && !window.confirm('An external agent changed this project on disk. Reload and discard your unsaved editor changes? Choose Cancel to keep your local edits and resolve the conflict manually.')) {
+      if ((isDirty || externalConflict) && !window.confirm('An external agent changed this project on disk. Reload and discard your unsaved editor changes? Choose Cancel to keep your local edits and resolve the conflict manually.')) {
         setExternalConflict(true);
         setStatus('External edits detected — resolve conflict before saving');
         return;
       }
       setProject(payload.data); setSelected(payload.data.layers[0]?.id ?? ''); setCurrentTime(0);
-      setHistory([]); setFuture([]); setExternalConflict(false); setStatus('Synced external agent changes');
+      setHistory([]); setFuture([]); setExternalConflict(false); setIsDirty(false); setStatus('Synced external agent changes');
     });
-  }, [status, externalConflict]);
+  }, [isDirty, externalConflict]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
@@ -135,12 +136,12 @@ export default function App() {
     if (externalConflict) { setStatus('External changes conflict — use Open to reload or Save As to preserve your local version'); return; }
     const data = { ...project, savedAt: new Date().toISOString(), schemaVersion: 1 };
     if (window.motionStudio) {
-      try { const result = await window.motionStudio.saveProject(data); if (!result.canceled) setStatus('Saved to ' + result.filePath); }
+      try { const result = await window.motionStudio.saveProject(data); if (!result.canceled) { setIsDirty(false); setStatus('Saved to ' + result.filePath); } }
       catch { setStatus('Save failed'); }
     } else {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.motion.json`; a.click(); window.setTimeout(() => URL.revokeObjectURL(url), 5000); setStatus('Project downloaded');
+      const a = document.createElement('a'); a.href = url; a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.motion.json`; a.click(); window.setTimeout(() => URL.revokeObjectURL(url), 5000); setIsDirty(false); setStatus('Project downloaded');
     }
   };
   const saveAs = async () => {
@@ -148,7 +149,7 @@ export default function App() {
     if (window.motionStudio) {
       try {
         const result = await window.motionStudio.saveProjectAs(data);
-        if (!result.canceled) { setExternalConflict(false); setStatus('Saved to ' + result.filePath); }
+        if (!result.canceled) { setExternalConflict(false); setIsDirty(false); setStatus('Saved to ' + result.filePath); }
       } catch (error) {
         setStatus(error instanceof Error ? 'Save As failed: ' + error.message : 'Save As failed');
       }
@@ -162,7 +163,7 @@ export default function App() {
       const result = await window.motionStudio.openProject();
       if (result.canceled || !result.data) return;
       if (!isValidProject(result.data)) { setStatus('Project file is invalid or unsupported'); return; }
-      setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setExternalConflict(false); setStatus('Project opened');
+      setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setExternalConflict(false); setIsDirty(false); setStatus('Project opened');
     } catch (error) {
       setStatus(error instanceof Error ? 'Could not open project: ' + error.message : 'Could not open project file');
     }
@@ -171,7 +172,7 @@ export default function App() {
     try {
       const data: unknown = JSON.parse(await file.text());
       if (!isValidProject(data)) { setStatus('Project file is invalid or unsupported'); return; }
-      setProject(data); setSelected(data.layers[0]?.id ?? ''); setCurrentTime(0); setExternalConflict(false); setStatus('Project opened');
+      setProject(data); setSelected(data.layers[0]?.id ?? ''); setCurrentTime(0); setExternalConflict(false); setIsDirty(false); setStatus('Project opened');
     } catch {
       setStatus('Could not read project JSON');
     }
