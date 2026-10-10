@@ -52,6 +52,19 @@ describe('project file validation', () => {
     expect(isValidProject(q)).toBe(false);
   });
 
+  it('validates clip transitions, geometric masks and color grade ranges', () => {
+    const p = validProject();
+    (p.layers[0] as any).transitionIn = { type: 'fade', duration: 1 };
+    (p.layers[0] as any).transitionOut = { type: 'wipe-left', duration: 2 };
+    (p.layers[0] as any).mask = { type: 'ellipse', inset: 10 };
+    (p.layers[0] as any).colorGrade = { exposure: 1, contrast: 110, saturation: 90, temperature: -10, tint: 5 };
+    expect(isValidProject(p)).toBe(true);
+    const bad = validProject(); (bad.layers[0] as any).mask = { type: 'path-script', inset: 0 };
+    expect(isValidProject(bad)).toBe(false);
+    const badGrade = validProject(); (badGrade.layers[0] as any).colorGrade = { exposure: 99, contrast: 100, saturation: 100, temperature: 0, tint: 0 };
+    expect(isValidProject(badGrade)).toBe(false);
+  });
+
   it('rejects malformed keyframe times', () => {
     const p = validProject(); p.layers[0].keyframes[0].time = 11;
     expect(isValidProject(p)).toBe(false);
