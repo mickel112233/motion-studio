@@ -6,7 +6,7 @@
 
 - Electron desktop shell with context isolation, sandboxed renderer and a narrow preload bridge.
 - React + TypeScript + Vite editor with composition preview, layers, timeline, playhead, inspector and keyboard shortcuts.
-- Frame-snapped timeline clip movement and trim-start/trim-end handles.
+- Frame-snapped timeline scrubbing, clip movement and trim-start/trim-end handles.
 - Text, shape and imported media layers; editable transforms, timing, color, composition dimensions and frame rate.
 - Live per-layer filter stack: blur, brightness, contrast, saturation, grayscale, sepia, hue rotation and drop shadow.
 - Import local image, video and audio files into the project layer list; control audio volume and mute state.
