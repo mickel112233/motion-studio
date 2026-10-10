@@ -68,6 +68,8 @@ export default function App() {
   const [exportingVideo, setExportingVideo] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [externalConflict, setExternalConflict] = useState(false);
+  const externalConflictRef = useRef(externalConflict);
+  externalConflictRef.current = externalConflict;
   const [isDirty, setIsDirty] = useState(false);
   const [panel, setPanel] = useState<'project' | 'effects' | 'audio' | 'agents'>('project');
   const [tool, setTool] = useState<'select' | 'move' | 'text' | 'shape'>('select');
@@ -210,7 +212,14 @@ export default function App() {
       const task = api.autosaveProject(snapshot);
       autosavePromiseRef.current = task;
       void task.then(result => {
-        if (result.conflict) { setExternalConflict(true); setStatus('External edits detected — resolve conflict before saving'); return; }
+        if (result.conflict) {
+          if (result.data && isValidProject(result.data) && window.confirm('The saved project changed outside Motion Studio. Reload the external version and discard your unsaved edits? Choose Cancel to keep your local version and use Save As.')) {
+            setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setHistory([]); setFuture([]); setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Synced external agent changes');
+          } else {
+            setExternalConflict(true); externalConflictRef.current = true; setStatus('External edits detected — resolve conflict before saving');
+          }
+          return;
+        }
         if (result.saved && latestProjectRef.current === sourceProject) {
           if (!result.recovery) setIsDirty(false);
           setStatus(result.recovery ? 'Recovery snapshot saved' : 'Autosaved');
@@ -257,10 +266,17 @@ export default function App() {
   });
   const save = async () => {
     if (autosavePromiseRef.current) await autosavePromiseRef.current.catch(() => undefined);
-    if (externalConflict) { setStatus('External changes conflict — use Open to reload or Save As to preserve your local version'); return; }
+    if (externalConflictRef.current) { setStatus('External changes conflict — use Open to reload or Save As to preserve your local version'); return; }
     const data = { ...latestProjectRef.current, savedAt: new Date().toISOString(), schemaVersion: 1 };
     if (window.motionStudio) {
-      try { const result = await window.motionStudio.saveProject(data); if (result.conflict) { setExternalConflict(true); setStatus('External edits detected — use Open to reload or Save As to preserve your local version'); return; } if (!result.canceled) { setIsDirty(false); setStatus('Saved to ' + result.filePath); } }
+      try { const result = await window.motionStudio.saveProject(data); if (result.conflict) {
+          if (result.data && isValidProject(result.data) && window.confirm('The saved project changed outside Motion Studio. Reload the external version? Choose Cancel to keep your local version and use Save As.')) {
+            setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setHistory([]); setFuture([]); setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Synced external agent changes');
+          } else {
+            setExternalConflict(true); externalConflictRef.current = true; setStatus('External edits detected — use Open to reload or Save As to preserve your local version');
+          }
+          return;
+        } if (!result.canceled) { setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Saved to ' + result.filePath); } }
       catch { setStatus('Save failed'); }
     } else {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -274,7 +290,7 @@ export default function App() {
     if (window.motionStudio) {
       try {
         const result = await window.motionStudio.saveProjectAs(data);
-        if (!result.canceled) { setExternalConflict(false); setIsDirty(false); setStatus('Saved to ' + result.filePath); }
+        if (!result.canceled) { setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Saved to ' + result.filePath); }
       } catch (error) {
         setStatus(error instanceof Error ? 'Save As failed: ' + error.message : 'Save As failed');
       }
@@ -289,7 +305,7 @@ export default function App() {
       const result = await window.motionStudio.openProject();
       if (result.canceled || !result.data) return;
       if (!isValidProject(result.data)) { setStatus('Project file is invalid or unsupported'); return; }
-      setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setExternalConflict(false); setIsDirty(false); setStatus('Project opened');
+      setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Project opened');
     } catch (error) {
       setStatus(error instanceof Error ? 'Could not open project: ' + error.message : 'Could not open project file');
     }
