@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "mcp:stdio": "node electron/mcp-server.cjs",
     "mcp:check": "node --check electron/mcp-server.cjs",
-    "test:mcp": "node --test electron/mcp-server.test.cjs",
+    "test:mcp": "node --test electron/mcp-server.test.cjs electron/ffmpeg-runtime.test.cjs",
     "test:unit": "vitest run src",
     "test": "npm run test:unit && npm run test:mcp"
   },
