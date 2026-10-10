@@ -270,7 +270,7 @@ export default function App() {
   };
   const saveAs = async () => {
     if (autosavePromiseRef.current) await autosavePromiseRef.current.catch(() => undefined);
-    const data = { ...project, savedAt: new Date().toISOString(), schemaVersion: 1 };
+    const data = { ...latestProjectRef.current, savedAt: new Date().toISOString(), schemaVersion: 1 };
     if (window.motionStudio) {
       try {
         const result = await window.motionStudio.saveProjectAs(data);
