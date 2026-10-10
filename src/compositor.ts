@@ -4,7 +4,7 @@ export type RenderLayer = {
   id: string; name: string; kind: 'text' | 'shape' | 'image' | 'video' | 'audio';
   color: string; visible: boolean; start: number; duration: number;
   x: number; y: number; scale: number; rotation: number; opacity: number;
-  text?: string; assetUrl?: string; volume?: number; muted?: boolean; effects?: { id: string; type: 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow'; enabled: boolean; value: number }[];
+  text?: string; assetUrl?: string; volume?: number; muted?: boolean; audioFadeIn?: number; audioFadeOut?: number; effects?: { id: string; type: 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow'; enabled: boolean; value: number }[];
   transitionIn?: { type: 'none' | 'fade' | 'wipe-left' | 'wipe-right' | 'zoom'; duration: number };
   transitionOut?: { type: 'none' | 'fade' | 'wipe-left' | 'wipe-right' | 'zoom'; duration: number };
   mask?: { type: 'none' | 'rectangle' | 'ellipse'; inset: number };
