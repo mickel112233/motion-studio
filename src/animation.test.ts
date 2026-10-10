@@ -20,6 +20,21 @@ describe('Motion Studio animation engine', () => {
     expect(evaluateTransform(layer(), 20).x).toBe(100);
   });
 
+  it('keeps base transform until the first keyframe time', () => {
+    const value = evaluateTransform(layer({ keyframes: [
+      { time: 5, x: 80, y: 10, scale: 1, rotation: 0, opacity: 100 },
+      { time: 10, x: 100, y: 10, scale: 1, rotation: 0, opacity: 100 }
+    ] }), 2);
+    expect(value.x).toBe(0);
+    const single = evaluateTransform(layer({ keyframes: [
+      { time: 5, x: 80, y: 10, scale: 1, rotation: 0, opacity: 100 }
+    ] }), 2);
+    expect(single.x).toBe(0);
+    expect(evaluateTransform(layer({ keyframes: [
+      { time: 5, x: 80, y: 10, scale: 1, rotation: 0, opacity: 100 }
+    ] }), 6).x).toBe(80);
+  });
+
   it('applies easing curves deterministically', () => {
     expect(applyEasing(0.5, 'linear')).toBe(0.5);
     expect(applyEasing(0.5, 'ease-in')).toBe(0.25);
