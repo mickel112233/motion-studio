@@ -267,10 +267,7 @@ export default function App() {
         const chunks: BlobPart[] = [];
         recorder!.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data); };
         recorder!.onerror = () => reject(new Error('The browser video encoder reported an error'));
-        recorder!.onstop = () => {
-          if (!chunks.length) reject(new Error('The encoder produced an empty video'));
-          else resolve(new Blob(chunks, { type: recorder!.mimeType || 'video/webm' }));
-        };
+        recorder!.onstop = () => resolve(new Blob(chunks, { type: recorder!.mimeType || 'video/webm' }));
       });
       recorder.start(250);
       audioSession?.start();
@@ -293,6 +290,7 @@ export default function App() {
       recorder.stop();
       const blob = await recorded;
       if (wasCancelled) { setStatus('Video export cancelled'); return; }
+      if (!blob.size) throw new Error('The encoder produced an empty video');
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.webm`;
