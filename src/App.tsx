@@ -290,6 +290,7 @@ export default function App() {
     if (window.motionStudio) {
       try { const result = await window.motionStudio.saveProject(data); if (result.conflict) {
           if (result.data && isValidProject(result.data) && window.confirm('The saved project changed outside Motion Studio. Reload the external version? Choose Cancel to keep your local version and use Save As.')) {
+            void window.motionStudio.acceptExternalProject().catch(() => {});
             setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setHistory([]); setFuture([]); setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Synced external agent changes');
           } else {
             setExternalConflict(true); externalConflictRef.current = true; setStatus('External edits detected — use Open to reload or Save As to preserve your local version');
