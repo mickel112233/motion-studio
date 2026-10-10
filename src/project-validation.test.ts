@@ -27,6 +27,15 @@ describe('project file validation', () => {
     const q = validProject(); (q.layers[0].keyframes[0] as unknown as {easing:string}).easing = 'teleport';
     expect(isValidProject(q)).toBe(false);
   });
+  it('accepts bounded effect stacks and rejects invalid effect values', () => {
+    const p = validProject();
+    (p.layers[0] as unknown as { effects: unknown[] }).effects = [{ id: 'fx-1', type: 'blur', enabled: true, value: 8 }];
+    expect(isValidProject(p)).toBe(true);
+    const q = validProject();
+    (q.layers[0] as unknown as { effects: unknown[] }).effects = [{ id: 'fx-1', type: 'blur', enabled: true, value: 99 }];
+    expect(isValidProject(q)).toBe(false);
+  });
+
   it('rejects malformed keyframe times', () => {
     const p = validProject(); p.layers[0].keyframes[0].time = 11;
     expect(isValidProject(p)).toBe(false);
