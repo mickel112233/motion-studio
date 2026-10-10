@@ -40,7 +40,7 @@ async function getAsset(layer: RenderLayer): Promise<HTMLImageElement | HTMLVide
   return undefined;
 }
 
-function waitEvent(target: HTMLMediaElement | HTMLImageElement, event: 'load' | 'loadeddata' | 'seeked'): Promise<void> {
+function waitEvent(target: EventTarget, event: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => { cleanup(); reject(new Error('Timed out loading media asset')); }, 10000);
     const cleanup = () => { window.clearTimeout(timer); target.removeEventListener(event, done); target.removeEventListener('error', fail); };
