@@ -3,9 +3,9 @@ declare global {
   interface Window {
     motionStudio?: {
       getExportCapabilities: () => Promise<{ ffmpeg: { available: boolean; executable: string | null; version: string | null; message?: string } }>;
-      beginFfmpegExport: (spec: { width: number; height: number; fps: number; duration: number; audioClips?: Array<{ url: string; start: number; duration: number; volume: number; fadeIn: number; fadeOut: number }> }) => Promise<{ canceled: true } | { canceled: false; id: string; outputPath: string; audioClipCount: number }>;
+      beginFfmpegExport: (spec: { width: number; height: number; fps: number; duration: number; audioClips?: Array<{ url: string; start: number; duration: number; volume: number; fadeIn: number; fadeOut: number }>; videoAudioClips?: Array<{ url: string; start: number; duration: number; volume: number; fadeIn: number; fadeOut: number }> }) => Promise<{ canceled: true } | { canceled: false; id: string; outputPath: string; audioClipCount: number; embeddedAudioCount: number }>
       writeFfmpegFrame: (input: { id: string; frame: Uint8Array }) => Promise<{ framesWritten: number }>;
-      finishFfmpegExport: (input: { id: string }) => Promise<{ outputPath: string; framesWritten: number; audioClipCount: number }>;
+      finishFfmpegExport: (input: { id: string }) => Promise<{ outputPath: string; framesWritten: number; audioClipCount: number; embeddedAudioCount: number }>;
       cancelFfmpegExport: (input: { id: string }) => Promise<{ canceled: boolean }>;
       listProviders: () => Promise<Array<{ id: string; name: string; kind: 'openai-compatible' | 'anthropic' | 'gemini'; baseUrl: string; model: string; hasApiKey: boolean; updatedAt: string }>>;
       saveProvider: (provider: { id?: string; name: string; kind: 'openai-compatible' | 'anthropic' | 'gemini'; baseUrl: string; model: string; apiKey?: string }) => Promise<{ id: string; name: string; kind: 'openai-compatible' | 'anthropic' | 'gemini'; baseUrl: string; model: string; hasApiKey: boolean; updatedAt: string }>;
