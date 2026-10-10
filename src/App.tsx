@@ -167,6 +167,14 @@ export default function App() {
     const nextFrames = layer.keyframes.map(frame => ({ ...frame, time: Math.max(0, Math.min(project.duration, frame.time + delta)) })).sort((a,b) => a.time-b.time);
     updateLayer(layer.id, { start: drag.previewStart, keyframes: nextFrames });
   };
+  const togglePlayback = () => {
+    const next = !playing;
+    setPlaying(next);
+    document.querySelectorAll<HTMLMediaElement>('.comp-video, .comp-audio').forEach(media => {
+      if (next) void media.play().catch(() => {});
+      else media.pause();
+    });
+  };
   const editTransformAtPlayhead = (layer: Layer, patch: Partial<Pick<Layer, 'x' | 'y' | 'scale' | 'rotation' | 'opacity'>>) => {
     const atKeyframe = layer.keyframes.some(k => Math.abs(k.time - currentTime) < (1 / project.fps) / 2);
     if (layer.keyframes.length > 1 || atKeyframe) updateLayer(layer.id, { keyframes: upsertKeyframe(layer, currentTime, patch) });
@@ -259,7 +267,7 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !editingText) { e.preventDefault(); undo(); return; }
       if (editingText || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.code === 'Space') { e.preventDefault(); setPlaying(v => !v); }
+      if (e.code === 'Space') { e.preventDefault(); togglePlayback(); }
       if (e.key.toLowerCase() === 'v') setTool('select');
       if (e.key.toLowerCase() === 'm') setTool('move');
       if (e.key.toLowerCase() === 't') { setTool('text'); addLayer('text'); }
@@ -526,7 +534,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="transport"><div className="transport-left"><button className="icon-btn" title="Jump to start" onClick={() => setCurrentTime(0)}><SkipBackIcon/></button><button className="play-btn" onClick={() => setPlaying(v => !v)}>{playing ? <Pause size={16} fill="currentColor"/> : <Play size={16} fill="currentColor"/>}</button><button className="icon-btn" title="Jump to end" onClick={() => setCurrentTime(project.duration)}><SkipForwardIcon/></button><span className="timecode">{fmt(currentTime, project.fps)}</span><span className="fps-label">{project.fps} FPS</span></div><div className="transport-right"><span className="muted-label">WORK AREA</span><span className="workarea-value">00:00 — {fmt(project.duration, project.fps)}</span></div></div>
+          <div className="transport"><div className="transport-left"><button className="icon-btn" title="Jump to start" onClick={() => setCurrentTime(0)}><SkipBackIcon/></button><button className="play-btn" onClick={togglePlayback}>{playing ? <Pause size={16} fill="currentColor"/> : <Play size={16} fill="currentColor"/>}</button><button className="icon-btn" title="Jump to end" onClick={() => setCurrentTime(project.duration)}><SkipForwardIcon/></button><span className="timecode">{fmt(currentTime, project.fps)}</span><span className="fps-label">{project.fps} FPS</span></div><div className="transport-right"><span className="muted-label">WORK AREA</span><span className="workarea-value">00:00 — {fmt(project.duration, project.fps)}</span></div></div>
           <div className="scrub-track"><input aria-label="Current time" type="range" min="0" max={project.duration} step={1/project.fps} value={currentTime} onChange={e => setCurrentTime(Number(e.target.value))}/></div>
         </section>
 
