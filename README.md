@@ -93,7 +93,7 @@ The MCP server edits a configured saved project file and can update clip transit
 2. Property-level keyframes, bezier easing, graph curves and animation presets.
 3. Canvas/WebGL compositor, advanced masks, blend modes and effect stack.
 4. Live audio preview playback, waveform display and timeline synchronization.
-5. FFmpeg audio muxing, media-source audio, image sequences, cancellation hardening and detailed render errors. Video-only FFmpeg MP4 rendering is implemented; audio muxing remains pending.
+5. Embedded audio from video sources, advanced audio routing, image sequences, cancellation hardening and detailed render errors. FFmpeg MP4 currently mixes supported local-file audio layers.
 6. Automated unit tests, renderer E2E tests and Windows packaging validation.
 7. Scoped MCP permissions, undoable agent transactions, task approvals and plugin/extension API.
 
