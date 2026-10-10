@@ -83,7 +83,7 @@ Replace both example paths with real absolute paths. See docs/AGENTS-MCP.md for 
 
 ## Important scope notes
 
-This repository is an evolving foundation, **not a complete After Effects replacement yet**. The editor evaluates transform keyframes with interpolation and easing, and exports animated WebM from its canvas compositor. A GPU compositing/effects graph, feathered/bezier/tracked masks, waveform editing, advanced audio routing, professional color scopes/LUT workflows, and a complete FFmpeg production export pipeline are not implemented; the current FFmpeg MP4 path is video-only and does not mux project audio. Color temperature/tint are approximated using CSS filters rather than a color-managed pipeline. WebM export can mix audio clips and source-video audio with per-layer volume/mute settings. The current filter stack uses CSS/canvas filters; some visual rendering details differ from the interactive DOM preview.
+This repository is an evolving foundation, **not a complete After Effects replacement yet**. The editor evaluates transform keyframes with interpolation and easing, and exports animated WebM from its canvas compositor. A GPU compositing/effects graph, feathered/bezier/tracked masks, waveform editing, advanced audio routing, professional color scopes/LUT workflows, and a complete FFmpeg production export pipeline are not implemented; the FFmpeg MP4 fallback mixes supported local-file audio layers but does not yet include audio embedded in video sources. Color temperature/tint are approximated using CSS filters rather than a color-managed pipeline. WebM export can mix audio clips and source-video audio with per-layer volume/mute settings. The current filter stack uses CSS/canvas filters; some visual rendering details differ from the interactive DOM preview.
 
 The MCP server edits a configured saved project file and can update clip transitions, geometric masks and basic color-grade properties. The desktop app watches the active file and can reload agent edits; if local changes are unsaved, it prompts before replacing them and blocks a conflicting Save until resolved. Keep one writer agent active at a time and review agent-generated edits.
 
@@ -93,7 +93,7 @@ The MCP server edits a configured saved project file and can update clip transit
 2. Property-level keyframes, bezier easing, graph curves and animation presets.
 3. Canvas/WebGL compositor, advanced masks, blend modes and effect stack.
 4. Live audio preview playback, waveform display and timeline synchronization.
-5. Embedded audio from video sources, advanced audio routing, image sequences, cancellation hardening and detailed render errors. FFmpeg MP4 currently mixes supported local-file audio layers.
+5. Embedded audio from video sources, advanced audio routing, image sequences, embedded audio from video sources, advanced audio routing, image sequences, and detailed render diagnostics. MP4 export now rejects incomplete frame sequences and terminates its FFmpeg process on failure; it mixes supported local-file audio layers.
 6. Automated unit tests, renderer E2E tests and Windows packaging validation.
 7. Scoped MCP permissions, undoable agent transactions, task approvals and plugin/extension API.
 
