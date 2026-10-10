@@ -196,7 +196,7 @@ export default function App() {
       if (!isValidProject(result.data)) { void api.discardRecoveryProject(); return; }
       const when = result.modifiedAt ? new Date(result.modifiedAt).toLocaleString() : 'an earlier session';
       if (window.confirm(`A recovery snapshot from ${when} was found. Restore it? Choose Cancel to discard the recovery snapshot.`)) {
-        setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setIsDirty(true); setExternalConflict(false); setStatus('Recovered unsaved project — save to choose a location');
+        setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setIsDirty(true); setExternalConflict(false); externalConflictRef.current = false; setStatus('Recovered unsaved project — save to choose a location');
       } else {
         void api.discardRecoveryProject();
       }
@@ -238,12 +238,12 @@ export default function App() {
       if (payload.error) { setStatus(payload.error); return; }
       if (!payload.data || !isValidProject(payload.data)) { setStatus('An external project edit could not be validated'); return; }
       if ((isDirty || externalConflict) && !window.confirm('An external agent changed this project on disk. Reload and discard your unsaved editor changes? Choose Cancel to keep your local edits and resolve the conflict manually.')) {
-        setExternalConflict(true);
+        setExternalConflict(true); externalConflictRef.current = true;
         setStatus('External edits detected — resolve conflict before saving');
         return;
       }
       setProject(payload.data); setSelected(payload.data.layers[0]?.id ?? ''); setCurrentTime(0);
-      setHistory([]); setFuture([]); setExternalConflict(false); setIsDirty(false); setStatus('Synced external agent changes');
+      setHistory([]); setFuture([]); setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Synced external agent changes');
     });
   }, [isDirty, externalConflict]);
   useEffect(() => {
@@ -315,7 +315,7 @@ export default function App() {
     try {
       const data: unknown = JSON.parse(await file.text());
       if (!isValidProject(data)) { setStatus('Project file is invalid or unsupported'); return; }
-      setProject(data); setSelected(data.layers[0]?.id ?? ''); setCurrentTime(0); setExternalConflict(false); setIsDirty(false); setStatus('Project opened');
+      setProject(data); setSelected(data.layers[0]?.id ?? ''); setCurrentTime(0); setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Project opened');
     } catch {
       setStatus('Could not read project JSON');
     }
