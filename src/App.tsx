@@ -123,6 +123,19 @@ export default function App() {
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.motion.json`; a.click(); URL.revokeObjectURL(a.href); setStatus('Project downloaded');
     }
   };
+  const saveAs = async () => {
+    const data = { ...project, savedAt: new Date().toISOString(), schemaVersion: 1 };
+    if (window.motionStudio) {
+      try {
+        const result = await window.motionStudio.saveProjectAs(data);
+        if (!result.canceled) setStatus('Saved to ' + result.filePath);
+      } catch (error) {
+        setStatus(error instanceof Error ? 'Save As failed: ' + error.message : 'Save As failed');
+      }
+    } else {
+      await save();
+    }
+  };
   const open = async () => {
     if (!window.motionStudio) { fileInput.current?.click(); return; }
     try {
@@ -231,6 +244,7 @@ export default function App() {
         <span className="top-divider small" />
         <button className="secondary-btn" onClick={() => void open()}><FolderOpen size={15}/> Open</button>
         <button className="secondary-btn" onClick={() => void save()}><Save size={15}/> Save</button>
+        <button className="secondary-btn" onClick={() => void saveAs()}><Save size={15}/> Save As</button>
         <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><button className="primary-btn" onClick={() => void exportVideo()} disabled={exportingVideo}>{exportingVideo ? <><Film size={15}/> Rendering {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
       </div>
     </header>
