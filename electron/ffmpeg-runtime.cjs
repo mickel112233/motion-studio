@@ -7,18 +7,20 @@ function binaryName(platform = process.platform) {
 }
 
 function candidatePaths({ platform = process.platform, resourcesPath = process.resourcesPath, appPath = process.cwd(), env = process.env } = {}) {
+  const pathApi = platform === 'win32' ? path.win32 : path.posix;
+  const pathDelimiter = platform === 'win32' ? ';' : ':';
   const name = binaryName(platform);
   const candidates = [];
   if (resourcesPath) {
-    candidates.push(path.join(resourcesPath, 'ffmpeg', name));
-    candidates.push(path.join(resourcesPath, 'assets', 'runtime', 'ffmpeg', name));
+    candidates.push(pathApi.join(resourcesPath, 'ffmpeg', name));
+    candidates.push(pathApi.join(resourcesPath, 'assets', 'runtime', 'ffmpeg', name));
   }
   if (appPath) {
-    candidates.push(path.join(appPath, 'assets', 'runtime', 'ffmpeg', name));
-    candidates.push(path.join(appPath, 'runtime', 'ffmpeg', name));
+    candidates.push(pathApi.join(appPath, 'assets', 'runtime', 'ffmpeg', name));
+    candidates.push(pathApi.join(appPath, 'runtime', 'ffmpeg', name));
   }
-  const pathEntries = (env.PATH || '').split(path.delimiter).filter(Boolean);
-  for (const entry of pathEntries) candidates.push(path.join(entry, name));
+  const pathEntries = (env.PATH || '').split(pathDelimiter).filter(Boolean);
+  for (const entry of pathEntries) candidates.push(pathApi.join(entry, name));
   return [...new Set(candidates)];
 }
 
