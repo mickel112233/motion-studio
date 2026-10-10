@@ -50,6 +50,7 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const [exportingVideo, setExportingVideo] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [externalConflict, setExternalConflict] = useState(false);
   const [panel, setPanel] = useState<'project' | 'effects' | 'audio' | 'agents'>('project');
   const [tool, setTool] = useState<'select' | 'move' | 'text' | 'shape'>('select');
   const [zoom, setZoom] = useState(1);
@@ -104,6 +105,20 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [playing, project.duration, project.fps]);
   useEffect(() => {
+    if (!window.motionStudio?.onProjectExternalChange) return;
+    return window.motionStudio.onProjectExternalChange(payload => {
+      if (payload.error) { setStatus(payload.error); return; }
+      if (!payload.data || !isValidProject(payload.data)) { setStatus('An external project edit could not be validated'); return; }
+      if ((status === 'Unsaved changes' || externalConflict) && !window.confirm('An external agent changed this project on disk. Reload and discard your unsaved editor changes? Choose Cancel to keep your local edits and resolve the conflict manually.')) {
+        setExternalConflict(true);
+        setStatus('External edits detected — resolve conflict before saving');
+        return;
+      }
+      setProject(payload.data); setSelected(payload.data.layers[0]?.id ?? ''); setCurrentTime(0);
+      setHistory([]); setFuture([]); setExternalConflict(false); setStatus('Synced external agent changes');
+    });
+  }, [status, externalConflict]);
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
@@ -115,6 +130,7 @@ export default function App() {
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
   });
   const save = async () => {
+    if (externalConflict) { setStatus('External changes conflict — use Open to reload or Save As to preserve your local version'); return; }
     const data = { ...project, savedAt: new Date().toISOString(), schemaVersion: 1 };
     if (window.motionStudio) {
       try { const result = await window.motionStudio.saveProject(data); if (!result.canceled) setStatus('Saved to ' + result.filePath); }
@@ -129,7 +145,7 @@ export default function App() {
     if (window.motionStudio) {
       try {
         const result = await window.motionStudio.saveProjectAs(data);
-        if (!result.canceled) setStatus('Saved to ' + result.filePath);
+        if (!result.canceled) { setExternalConflict(false); setStatus('Saved to ' + result.filePath); }
       } catch (error) {
         setStatus(error instanceof Error ? 'Save As failed: ' + error.message : 'Save As failed');
       }
@@ -143,7 +159,7 @@ export default function App() {
       const result = await window.motionStudio.openProject();
       if (result.canceled || !result.data) return;
       if (!isValidProject(result.data)) { setStatus('Project file is invalid or unsupported'); return; }
-      setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setStatus('Project opened');
+      setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setExternalConflict(false); setStatus('Project opened');
     } catch (error) {
       setStatus(error instanceof Error ? 'Could not open project: ' + error.message : 'Could not open project file');
     }
@@ -152,7 +168,7 @@ export default function App() {
     try {
       const data: unknown = JSON.parse(await file.text());
       if (!isValidProject(data)) { setStatus('Project file is invalid or unsupported'); return; }
-      setProject(data); setSelected(data.layers[0]?.id ?? ''); setCurrentTime(0); setStatus('Project opened');
+      setProject(data); setSelected(data.layers[0]?.id ?? ''); setCurrentTime(0); setExternalConflict(false); setStatus('Project opened');
     } catch {
       setStatus('Could not read project JSON');
     }
@@ -262,6 +278,7 @@ export default function App() {
         <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><button className="primary-btn" onClick={() => void exportVideo()} disabled={exportingVideo}>{exportingVideo ? <><Film size={15}/> Rendering {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
       </div>
     </header>
+    {externalConflict && <div className="external-conflict-banner"><span><strong>External project conflict.</strong> An agent updated the saved file while you had local edits. Saving is paused to avoid overwriting the agent's work.</span><button className="secondary-btn" onClick={() => void open()}>Open / reload</button><button className="primary-btn" onClick={() => void saveAs()}>Save local copy as…</button></div>}
 
     <div className="workspace">
       <aside className="left-rail">
