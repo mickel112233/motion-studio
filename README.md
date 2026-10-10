@@ -6,13 +6,14 @@
 
 - Electron desktop shell with context isolation, sandboxed renderer and a narrow preload bridge.
 - React + TypeScript + Vite editor with composition preview, layers, timeline, playhead, inspector and keyboard shortcuts.
-- Text and shape layers; editable transforms, timing, color, composition dimensions and frame rate.
+- Text, shape and imported media layers; editable transforms, timing, color, composition dimensions and frame rate.
+- Live per-layer filter stack: blur, brightness, contrast, saturation, grayscale, sepia, hue rotation and drop shadow.
 - Import local image, video and audio files into the project layer list.
 - Validated project open/save, Save As, atomic desktop writes, and basic external-file change detection.
 - Export a rendered PNG frame or an animated WebM video from the canvas compositor (up to 120 seconds in this beta).
 - Undo/redo, visibility and locking controls, animated transform keyframes with linear/ease-in/ease-out/ease-in-out/hold interpolation, and editable outgoing easing.
 - Windows NSIS packaging configuration.
-- **MCP server for external agents** to inspect/validate projects, create/update/duplicate/reorder/delete layers, change composition settings, and edit keyframes including easing.
+- **MCP server for external agents** to inspect/validate projects, create/update/duplicate/reorder/delete layers, change composition settings, set live effect stacks, and edit keyframes including easing.
 
 ## Run on Windows
 
@@ -64,7 +65,7 @@ Replace both example paths with real absolute paths. See docs/AGENTS-MCP.md for 
 
 ## Important scope notes
 
-This repository is an evolving foundation, **not a complete After Effects replacement yet**. The editor evaluates transform keyframes with interpolation and easing, and exports animated WebM from its canvas compositor. A GPU compositing/effects graph, audio waveform playback/mixing, production-grade color management, and an FFmpeg-based production export pipeline are not implemented. The Effects panel is still a UI preview, and some visual rendering details differ from the interactive DOM preview.
+This repository is an evolving foundation, **not a complete After Effects replacement yet**. The editor evaluates transform keyframes with interpolation and easing, and exports animated WebM from its canvas compositor. A GPU compositing/effects graph, audio waveform playback/mixing, production-grade color management, and an FFmpeg-based production export pipeline are not implemented. The current filter stack uses CSS/canvas filters; some visual rendering details differ from the interactive DOM preview.
 
 The MCP server edits a configured saved project file. The desktop app watches the active file and can reload agent edits; if local changes are unsaved, it prompts before replacing them and blocks a conflicting Save until resolved. Keep one writer agent active at a time and review agent-generated edits.
 
