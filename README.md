@@ -29,6 +29,7 @@ Check and build:
 npm run typecheck
 npm run build
 npm run mcp:check
+npm run test:mcp
 ```
 
 Create a Windows installer:
