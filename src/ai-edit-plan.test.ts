@@ -37,6 +37,20 @@ describe('AI edit plan safety and application', () => {
     }
   });
 
+  it('accepts and applies transitions, geometric masks and color grade controls', () => {
+    const parsed = parseAiEditPlan(JSON.stringify({ summary:'Style the shot', operations:[{ type:'update-layer', layerId:'title', patch:{ transitionIn:{type:'fade',duration:1}, mask:{type:'ellipse',inset:8}, colorGrade:{exposure:1,contrast:110,saturation:90,temperature:10,tint:-5} } }] }));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      const result = applyAiEditPlan(project, parsed.plan);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.project.layers[0].transitionIn?.type).toBe('fade');
+        expect(result.project.layers[0].mask?.type).toBe('ellipse');
+        expect(result.project.layers[0].colorGrade?.exposure).toBe(1);
+      }
+    }
+  });
+
   it('does not partially apply a plan if a later operation conflicts', () => {
     const plan: AiEditPlan = { summary:'Conflict', operations:[
       { type:'update-layer', layerId:'title', patch:{ text:'Should not leak' } },
