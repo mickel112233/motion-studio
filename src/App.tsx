@@ -183,6 +183,37 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [playing, project.duration, project.fps]);
   useEffect(() => {
+    const api = window.motionStudio;
+    if (!api) return;
+    let cancelled = false;
+    void api.getRecoveryProject().then(result => {
+      if (cancelled || !result.available || !result.data) return;
+      if (!isValidProject(result.data)) { void api.discardRecoveryProject(); return; }
+      const when = result.modifiedAt ? new Date(result.modifiedAt).toLocaleString() : 'an earlier session';
+      if (window.confirm(`A recovery snapshot from ${when} was found. Restore it? Choose Cancel to discard the recovery snapshot.`)) {
+        setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setIsDirty(true); setExternalConflict(false); setStatus('Recovered unsaved project — save to choose a location');
+      } else {
+        void api.discardRecoveryProject();
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    const api = window.motionStudio;
+    if (!api || !isDirty || externalConflict) return;
+    const snapshot = { ...project, schemaVersion: 1, autosavedAt: new Date().toISOString() };
+    const timer = window.setTimeout(() => {
+      void api.autosaveProject(snapshot).then(result => {
+        if (result.conflict) { setExternalConflict(true); setStatus('External edits detected — resolve conflict before saving'); return; }
+        if (result.saved) {
+          if (!result.recovery) setIsDirty(false);
+          setStatus(result.recovery ? 'Recovery snapshot saved' : 'Autosaved');
+        }
+      }).catch(() => setStatus('Autosave failed — use Save to keep your changes'));
+    }, 1400);
+    return () => window.clearTimeout(timer);
+  }, [project, isDirty, externalConflict]);
+  useEffect(() => {
     if (!window.motionStudio?.onProjectExternalChange) return;
     return window.motionStudio.onProjectExternalChange(payload => {
       if (payload.error) { setStatus(payload.error); return; }
@@ -218,7 +249,7 @@ export default function App() {
     if (externalConflict) { setStatus('External changes conflict — use Open to reload or Save As to preserve your local version'); return; }
     const data = { ...project, savedAt: new Date().toISOString(), schemaVersion: 1 };
     if (window.motionStudio) {
-      try { const result = await window.motionStudio.saveProject(data); if (!result.canceled) { setIsDirty(false); setStatus('Saved to ' + result.filePath); } }
+      try { const result = await window.motionStudio.saveProject(data); if (result.conflict) { setExternalConflict(true); setStatus('External edits detected — use Open to reload or Save As to preserve your local version'); return; } if (!result.canceled) { setIsDirty(false); setStatus('Saved to ' + result.filePath); } }
       catch { setStatus('Save failed'); }
     } else {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
