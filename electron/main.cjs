@@ -4,7 +4,7 @@ const fsSync = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { pathToFileURL, fileURLToPath } = require('node:url');
-const { inspectFfmpeg } = require('./ffmpeg-runtime.cjs');
+const { inspectFfmpeg, probeAudioStream } = require('./ffmpeg-runtime.cjs');
 const { createFfmpegFrameExporter, validateExportSpec, validateCompletedFrameCount } = require('./ffmpeg-export.cjs');
 
 const isDev = !app.isPackaged;
@@ -245,15 +245,27 @@ app.whenReady().then(() => {
     const duration = Number(input?.duration);
     if (!Number.isFinite(duration) || duration <= 0 || duration > 120) throw new Error('Export duration must be greater than 0 and at most 120 seconds');
     const suppliedAudio = Array.isArray(input?.audioClips) ? input.audioClips : [];
-    if (suppliedAudio.length > 32) throw new Error('MP4 export supports up to 32 audio clips');
+    const suppliedVideoAudio = Array.isArray(input?.videoAudioClips) ? input.videoAudioClips : [];
+    if (suppliedAudio.length + suppliedVideoAudio.length > 32) throw new Error('MP4 export supports up to 32 audio clips');
     const audioClips = [];
-    for (const clip of suppliedAudio) {
-      if (!clip || typeof clip.url !== 'string' || !clip.url.startsWith('file:')) continue;
+    const resolveLocalMedia = async clip => {
+      if (!clip || typeof clip.url !== 'string' || !clip.url.startsWith('file:')) return null;
       let clipPath;
-      try { clipPath = fileURLToPath(clip.url); } catch { continue; }
+      try { clipPath = fileURLToPath(clip.url); } catch { return null; }
       const stat = await fs.stat(clipPath).catch(() => null);
-      if (!stat?.isFile()) continue;
+      return stat?.isFile() ? clipPath : null;
+    };
+    for (const clip of suppliedAudio) {
+      const clipPath = await resolveLocalMedia(clip);
+      if (!clipPath) continue;
       audioClips.push({ path: clipPath, start: clip.start, duration: clip.duration, volume: clip.volume, fadeIn: clip.fadeIn, fadeOut: clip.fadeOut });
+    }
+    let embeddedAudioCount = 0;
+    for (const clip of suppliedVideoAudio) {
+      const clipPath = await resolveLocalMedia(clip);
+      if (!clipPath || !probeAudioStream({ ffmpegPath: runtime.executable, filePath: clipPath })) continue;
+      audioClips.push({ path: clipPath, start: clip.start, duration: clip.duration, volume: clip.volume, fadeIn: clip.fadeIn, fadeOut: clip.fadeOut });
+      embeddedAudioCount += 1;
     }
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
       title: 'Export MP4 video',
@@ -273,8 +285,8 @@ app.whenReady().then(() => {
       audioClips
     });
     const id = crypto.randomUUID();
-    ffmpegExportSession = { id, exporter, outputPath: filePath, frameCount: 0, duration, audioClipCount: audioClips.length };
-    return { canceled: false, id, outputPath: filePath, audioClipCount: audioClips.length };
+    ffmpegExportSession = { id, exporter, outputPath: filePath, frameCount: 0, duration, audioClipCount: audioClips.length, embeddedAudioCount };
+    return { canceled: false, id, outputPath: filePath, audioClipCount: audioClips.length, embeddedAudioCount };
   });
 
   ipcMain.handle('export:ffmpeg-frame', async (_event, input) => {
