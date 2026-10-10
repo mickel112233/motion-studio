@@ -80,3 +80,20 @@ describe('Motion Studio animation engine', () => {
     expect(isLayerActive({ start: 2, duration: 3 }, 5)).toBe(false);
   });
 });
+
+describe('clip transition presentation', () => {
+  const layer = { start: 2, duration: 8, transitionIn: { type: 'fade' as const, duration: 2 }, transitionOut: { type: 'zoom' as const, duration: 2 } };
+  it('fades in according to local clip time', () => {
+    expect(evaluateClipPresentation(layer, 2).opacity).toBe(0);
+    expect(evaluateClipPresentation(layer, 3).opacity).toBeCloseTo(.5);
+    expect(evaluateClipPresentation(layer, 4).opacity).toBe(1);
+  });
+  it('zooms out at the clip end and ignores time outside transitions', () => {
+    expect(evaluateClipPresentation(layer, 8).scale).toBe(1);
+    expect(evaluateClipPresentation(layer, 9).scale).toBeCloseTo(1.1);
+    expect(evaluateClipPresentation(layer, 10).scale).toBeCloseTo(1.2);
+  });
+  it('reveals wipe transitions with a deterministic clip path', () => {
+    expect(evaluateClipPresentation({ start: 0, duration: 5, transitionIn: { type: 'wipe-left', duration: 1 } }, .5).clipPath).toBe('inset(0 50% 0 0)');
+  });
+});
