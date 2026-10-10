@@ -14,5 +14,10 @@ contextBridge.exposeInMainWorld('motionStudio', {
     ipcRenderer.on('project:external-change', listener);
     return () => ipcRenderer.removeListener('project:external-change', listener);
   },
+  listProviders: () => ipcRenderer.invoke('providers:list'),
+  saveProvider: (provider) => ipcRenderer.invoke('providers:save', provider),
+  deleteProvider: (id) => ipcRenderer.invoke('providers:delete', id),
+  testProvider: (id) => ipcRenderer.invoke('providers:test', id),
+  askProvider: (input) => ipcRenderer.invoke('providers:ask', input),
   isDesktop: true
 });
