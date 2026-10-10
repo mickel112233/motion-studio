@@ -4,7 +4,7 @@ export type RenderLayer = {
   id: string; name: string; kind: 'text' | 'shape' | 'image' | 'video' | 'audio';
   color: string; visible: boolean; start: number; duration: number;
   x: number; y: number; scale: number; rotation: number; opacity: number;
-  text?: string; assetUrl?: string; effects?: { id: string; type: 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow'; enabled: boolean; value: number }[];
+  text?: string; assetUrl?: string; volume?: number; muted?: boolean; effects?: { id: string; type: 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow'; enabled: boolean; value: number }[];
   keyframes?: { time: number; x: number; y: number; scale: number; rotation: number; opacity: number; easing?: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'hold' }[];
 };
 export type RenderProject = { name: string; width: number; height: number; fps: number; duration: number; layers: RenderLayer[] };
