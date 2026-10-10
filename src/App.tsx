@@ -555,6 +555,6 @@ function AgentPanel() {
     <div className="inspector-section"><div className="section-title"><span>AGENT TOOLS</span></div>
       {['Inspect and validate project','Create text, shape, image, video and audio layers','Update transforms, visibility, timing and text','Add keyframe data','Change composition dimensions and FPS','Set blur, brightness, contrast and other layer effects','Control audio volume and mute settings','Duplicate and reorder layers','Delete layers only with explicit confirmation'].map(item => <div className="agent-tool-row" key={item}><span className="status-led"/><span>{item}</span></div>)}
     </div>
-    <div className="agent-warning"><strong>Current boundary</strong><span>Agents edit the saved project file. The desktop app watches for agent changes and offers safe reload/conflict handling. WebM export is available; advanced effects and audio mixing are still in development.</span></div>
+    <div className="agent-warning"><strong>Current boundary</strong><span>Agents edit the saved project file. The desktop app watches for agent changes and offers safe reload/conflict handling. WebM export includes source audio; advanced GPU effects and live audio preview mixing are still in development.</span></div>
   </div>;
 }
