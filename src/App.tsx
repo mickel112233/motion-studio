@@ -17,7 +17,7 @@ type LayerEffect = { id: string; type: EffectType; enabled: boolean; value: numb
 type Layer = {
   id: string; name: string; kind: LayerKind; color: string; visible: boolean;
   locked: boolean; start: number; duration: number; x: number; y: number;
-  scale: number; rotation: number; opacity: number; text?: string; assetUrl?: string; effects?: LayerEffect[];
+  scale: number; rotation: number; opacity: number; text?: string; assetUrl?: string; effects?: LayerEffect[]; volume?: number; muted?: boolean;
   keyframes: { time: number; x: number; y: number; scale: number; rotation: number; opacity: number; easing?: Easing }[];
 };
 type Project = { name: string; width: number; height: number; fps: number; duration: number; layers: Layer[] };
@@ -37,7 +37,7 @@ const effectDefaults: Record<EffectType, { min: number; max: number; initial: nu
 const initialLayer = (kind: LayerKind, name: string, index: number): Layer => ({
   id: uid(), name, kind, color: colors[index % colors.length], visible: true, locked: false,
   start: 0, duration: 8, x: 0, y: 0, scale: 1, rotation: 0, opacity: 100,
-  text: kind === 'text' ? 'Your next big idea.' : undefined, effects: [],
+  text: kind === 'text' ? 'Your next big idea.' : undefined, effects: [], volume: 100, muted: false,
   keyframes: [{ time: 0, x: 0, y: 0, scale: 1, rotation: 0, opacity: 100 }]
 });
 const upsertKeyframe = (layer: Layer, time: number, transformPatch: Partial<Pick<Layer, 'x' | 'y' | 'scale' | 'rotation' | 'opacity'>> = {}, easing?: Easing) => {
