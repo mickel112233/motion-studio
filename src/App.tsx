@@ -651,8 +651,10 @@ function AgentPanel({ projectContext }: { projectContext: string }) {
     try {
       await window.motionStudio.deleteProvider(id);
       const list = await window.motionStudio.listProviders(); setProviders(list);
-      if (providerId === id) resetProviderForm();
-      if (providerId === id) setProviderId(list[0]?.id ?? '');
+      if (providerId === id) {
+        if (list[0]) editProvider(list[0].id);
+        else resetProviderForm();
+      }
       setProviderStatus('Provider removed.');
     } catch (error) { setProviderStatus(error instanceof Error ? error.message : 'Could not remove provider'); }
   };
