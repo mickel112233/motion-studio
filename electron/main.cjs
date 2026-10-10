@@ -105,6 +105,24 @@ function watchProjectFile(filePath) {
   }
 }
 
+function recoveryFilePath() {
+  return path.join(app.getPath('userData'), 'recovery.motion.json');
+}
+
+async function clearRecovery() {
+  await fs.rm(recoveryFilePath(), { force: true }).catch(() => {});
+}
+
+async function checkExternalVersion(filePath) {
+  const raw = await fs.readFile(filePath);
+  const hash = hashContent(raw);
+  if (!lastSavedHash || hash === lastSavedHash) return null;
+  const data = validateProject(JSON.parse(raw.toString('utf8')));
+  lastSavedHash = hash;
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('project:external-change', { filePath, data });
+  return data;
+}
+
 async function chooseSavePath() {
   const { canceled, filePath } = await dialog.showSaveDialog({
     title: 'Save Motion Studio project',
@@ -133,14 +151,25 @@ function createWindow() {
 }
 app.whenReady().then(() => {
   ipcMain.handle('project:save', async (_event, data) => {
+    const previousPath = currentProjectPath;
     let filePath = currentProjectPath;
     if (!filePath) filePath = await chooseSavePath();
     if (!filePath) return { canceled: true };
+    if (previousPath && filePath === previousPath) {
+      try {
+        const externalData = await checkExternalVersion(filePath);
+        if (externalData) return { canceled: false, conflict: true, filePath, data: externalData };
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        return { canceled: false, conflict: true, filePath };
+      }
+    }
     await writeProject(filePath, data);
     currentProjectPath = filePath;
     lastSavedHash = hashContent(JSON.stringify(data, null, 2) + '\n');
     watchProjectFile(filePath);
-    return { canceled: false, filePath };
+    await clearRecovery();
+    return { canceled: false, conflict: false, filePath };
   });
   ipcMain.handle('project:save-as', async (_event, data) => {
     const filePath = await chooseSavePath();
@@ -149,7 +178,8 @@ app.whenReady().then(() => {
     currentProjectPath = filePath;
     lastSavedHash = hashContent(JSON.stringify(data, null, 2) + '\n');
     watchProjectFile(filePath);
-    return { canceled: false, filePath };
+    await clearRecovery();
+    return { canceled: false, conflict: false, filePath };
   });
   ipcMain.handle('project:open', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
@@ -162,7 +192,41 @@ app.whenReady().then(() => {
     currentProjectPath = filePaths[0];
     lastSavedHash = hashContent(raw);
     watchProjectFile(filePaths[0]);
+    await clearRecovery();
     return { canceled: false, filePath: filePaths[0], data };
+  });
+  ipcMain.handle('project:autosave', async (_event, data) => {
+    validateProject(data);
+    if (currentProjectPath) {
+      try {
+        const externalData = await checkExternalVersion(currentProjectPath);
+        if (externalData) return { saved: false, conflict: true, filePath: currentProjectPath, data: externalData };
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        return { saved: false, conflict: true, filePath: currentProjectPath };
+      }
+      await writeProject(currentProjectPath, data);
+      lastSavedHash = hashContent(JSON.stringify(data, null, 2) + '\n');
+      return { saved: true, recovery: false, filePath: currentProjectPath };
+    }
+    const filePath = recoveryFilePath();
+    await writeProject(filePath, data);
+    return { saved: true, recovery: true, filePath };
+  });
+  ipcMain.handle('project:get-recovery', async () => {
+    const filePath = recoveryFilePath();
+    try {
+      const stat = await fs.stat(filePath);
+      const data = await readProject(filePath);
+      return { available: true, filePath, modifiedAt: stat.mtime.toISOString(), data };
+    } catch (error) {
+      if (error.code === 'ENOENT') return { available: false };
+      throw error;
+    }
+  });
+  ipcMain.handle('project:discard-recovery', async () => {
+    await clearRecovery();
+    return { discarded: true };
   });
   ipcMain.handle('media:import', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
