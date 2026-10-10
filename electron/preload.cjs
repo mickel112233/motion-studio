@@ -5,5 +5,10 @@ contextBridge.exposeInMainWorld('motionStudio', {
   saveProjectAs: (project) => ipcRenderer.invoke('project:save-as', project),
   openProject: () => ipcRenderer.invoke('project:open'),
   importMedia: () => ipcRenderer.invoke('media:import'),
+  onProjectExternalChange: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('project:external-change', listener);
+    return () => ipcRenderer.removeListener('project:external-change', listener);
+  },
   isDesktop: true
 });
