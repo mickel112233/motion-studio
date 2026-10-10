@@ -5,6 +5,7 @@ const MAX_FRAME_BYTES = 128 * 1024 * 1024;
 function validateExportSpec({ width, height, fps }) {
   if (!Number.isInteger(width) || width < 16 || width > 8192) throw new Error('Export width must be between 16 and 8192 pixels');
   if (!Number.isInteger(height) || height < 16 || height > 8192) throw new Error('Export height must be between 16 and 8192 pixels');
+  if (width % 2 !== 0 || height % 2 !== 0) throw new Error('MP4 export currently requires even width and height');
   if (!Number.isFinite(fps) || fps < 1 || fps > 60) throw new Error('Export frame rate must be between 1 and 60 FPS');
   const frameBytes = width * height * 4;
   if (!Number.isSafeInteger(frameBytes) || frameBytes > MAX_FRAME_BYTES) throw new Error('Frame is too large for the FFmpeg export pipeline');
