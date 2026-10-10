@@ -145,7 +145,8 @@ async function callTool(name, a) {
       const old = frames.find(k => k.time === t) || {x:l.x||0,y:l.y||0,scale:l.scale||1,rotation:l.rotation||0,opacity:l.opacity??100};
       const k = {time:t,x:old.x,y:old.y,scale:old.scale,rotation:old.rotation,opacity:old.opacity,...(old.easing ? {easing:old.easing} : {})};
       for (const prop of ['x','y','scale','rotation','opacity']) if (a[prop] !== undefined) k[prop] = num(a[prop],prop,prop==='scale'?.001:prop==='opacity'?0:-360000,prop==='scale'?1000:prop==='opacity'?100:360000);
-      if (a.easing !== undefined) { fail(['linear','ease-in','ease-out','ease-in-out','hold'].includes(a.easing), 'Invalid easing'); k.easing = a.easing; }\n      l.keyframes = [...frames.filter(f => f.time !== t),k].sort((x,y)=>x.time-y.time); value = k; changed = true; break;
+      if (a.easing !== undefined) { fail(['linear','ease-in','ease-out','ease-in-out','hold'].includes(a.easing), 'Invalid easing'); k.easing = a.easing; }
+      l.keyframes = [...frames.filter(f => f.time !== t),k].sort((x,y)=>x.time-y.time); value = k; changed = true; break;
     }
     case 'layers.duplicate': {
       const source = layer(p,str(a.id,'id',100));
