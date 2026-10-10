@@ -66,20 +66,22 @@ export default function App() {
   const selectedKeyframe = selectedLayer?.keyframes.find(k => Math.abs(k.time - currentTime) < (1 / project.fps) / 2);
 
   const updateLayer = useCallback((id: string, patch: Partial<Layer>) => {
-    setProject(p => {
-      setHistory(h => [...h.slice(-39), p]); setFuture([]);
-      return { ...p, layers: p.layers.map(l => {
-        if (l.id !== id) return l;
-        const next = { ...l, ...patch };
-        const transformChanged = ['x','y','scale','rotation','opacity'].some(key => key in patch);
-        if (!('keyframes' in patch) && transformChanged && l.keyframes.length === 1 && Math.abs(l.keyframes[0].time - l.start) < 1e-7) {
-          next.keyframes = [{ ...l.keyframes[0], x:next.x, y:next.y, scale:next.scale, rotation:next.rotation, opacity:next.opacity }];
-        }
-        return next;
-      }) };
-    });
+    setHistory(h => [...h.slice(-39), project]); setFuture([]);
+    setProject(p => ({ ...p, layers: p.layers.map(l => {
+      if (l.id !== id) return l;
+      const next = { ...l, ...patch };
+      const transformChanged = ['x','y','scale','rotation','opacity'].some(key => key in patch);
+      if (!('keyframes' in patch) && transformChanged && l.keyframes.length === 1 && Math.abs(l.keyframes[0].time - l.start) < 1e-7) {
+        next.keyframes = [{ ...l.keyframes[0], x:next.x, y:next.y, scale:next.scale, rotation:next.rotation, opacity:next.opacity }];
+      }
+      return next;
+    }) }));
     setStatus('Unsaved changes');
-  }, []);
+  }, [project]);
+  const updateProject = (updater: (value: Project) => Project) => {
+    setHistory(h => [...h.slice(-39), project]); setFuture([]);
+    setProject(updater(project)); setStatus('Unsaved changes');
+  };
   const editTransformAtPlayhead = (layer: Layer, patch: Partial<Pick<Layer, 'x' | 'y' | 'scale' | 'rotation' | 'opacity'>>) => {
     const atKeyframe = layer.keyframes.some(k => Math.abs(k.time - currentTime) < (1 / project.fps) / 2);
     if (layer.keyframes.length > 1 || atKeyframe) updateLayer(layer.id, { keyframes: upsertKeyframe(layer, currentTime, patch) });
@@ -123,8 +125,8 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
       if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) { e.preventDefault(); setPlaying(v => !v); }
-      if (e.key === 'Delete' && selectedLayer && !(e.target instanceof HTMLInputElement)) {
-        setHistory(h => [...h.slice(-39), project]); setProject(p => ({ ...p, layers: p.layers.filter(l => l.id !== selected) })); setSelected(''); setStatus('Unsaved changes');
+      if (e.key === 'Delete' && selectedLayer && !(e.target instanceof HTMLInputElement) && !selectedLayer.locked) {
+        updateProject(p => ({ ...p, layers: p.layers.filter(l => l.id !== selected) })); setSelected('');
       }
     };
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
@@ -266,7 +268,7 @@ export default function App() {
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Aperture size={19}/></div><span>motion<span className="brand-light">studio</span></span><span className="version">BETA</span></div>
       <div className="top-divider" />
-      <button className="project-name" onClick={() => { const n = prompt('Composition name', project.name); if (n?.trim()) setProject(p => ({ ...p, name: n.trim() })); }}>{project.name}<ChevronDown size={14}/></button>
+      <button className="project-name" onClick={() => { const n = prompt('Composition name', project.name); if (n?.trim()) updateProject(p => ({ ...p, name: n.trim() })); }}>{project.name}<ChevronDown size={14}/></button>
       <div className="top-center"><span className="save-dot" />{status}</div>
       <div className="top-actions">
         <button className="icon-btn" title="Undo (Ctrl+Z)" onClick={undo}><Undo2 size={16}/></button>
@@ -338,7 +340,7 @@ export default function App() {
           {selectedLayer?.kind==='text' && <div className="inspector-section"><div className="section-title"><span>TYPOGRAPHY</span><ChevronDown size={14}/></div><label className="field-label">Text content</label><textarea className="text-edit" value={selectedLayer.text??''} onChange={e=>updateLayer(selectedLayer.id,{text:e.target.value})}/><div className="property-row"><label>Color</label><input className="color-input" type="color" value="#f4f2ff" aria-label="Text color"/></div></div>}
           {selectedLayer?.kind==='shape' && <div className="inspector-section"><div className="section-title"><span>APPEARANCE</span><ChevronDown size={14}/></div><div className="property-row"><label>Fill color</label><input className="color-input" type="color" value={selectedLayer.color} onChange={e=>updateLayer(selectedLayer.id,{color:e.target.value})}/></div></div>}
           <div className="inspector-section"><div className="section-title"><span>TIMING</span><ChevronDown size={14}/></div>{selectedLayer && <><div className="property-row"><label>Start</label><NumberField value={selectedLayer.start} suffix="s" onChange={v=>updateLayer(selectedLayer.id,{start:Math.max(0,v)})}/></div><div className="property-row"><label>Duration</label><NumberField value={selectedLayer.duration} suffix="s" onChange={v=>updateLayer(selectedLayer.id,{duration:Math.max(.1,v)})}/></div></>}</div>
-          <div className="inspector-section"><div className="section-title"><span>COMPOSITION</span><button className="icon-btn tiny" title="Composition settings"><Settings2 size={13}/></button></div><div className="property-row"><label>Width</label><NumberField value={project.width} onChange={v=>setProject(p=>({...p,width:Math.max(16,v)}))}/></div><div className="property-row"><label>Height</label><NumberField value={project.height} onChange={v=>setProject(p=>({...p,height:Math.max(16,v)}))}/></div><div className="property-row"><label>Frame rate</label><select className="field-select" value={project.fps} onChange={e=>setProject(p=>({...p,fps:Number(e.target.value)}))}><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></select></div><div className="property-row"><label>Duration</label><NumberField value={project.duration} suffix="s" onChange={v=>setProject(p=>({...p,duration:Math.max(1,v)}))}/></div></div>
+          <div className="inspector-section"><div className="section-title"><span>COMPOSITION</span><button className="icon-btn tiny" title="Composition settings"><Settings2 size={13}/></button></div><div className="property-row"><label>Width</label><NumberField value={project.width} onChange={v=>updateProject(p=>({...p,width:Math.max(16,Math.min(16384,Math.round(v)))}))}/></div><div className="property-row"><label>Height</label><NumberField value={project.height} onChange={v=>updateProject(p=>({...p,height:Math.max(16,Math.min(16384,Math.round(v)))}))}/></div><div className="property-row"><label>Frame rate</label><select className="field-select" value={project.fps} onChange={e=>updateProject(p=>({...p,fps:Number(e.target.value)}))}><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></select></div><div className="property-row"><label>Duration</label><NumberField value={project.duration} suffix="s" onChange={v=>updateProject(p=>({...p,duration:Math.max(1,Math.min(86400,v))}))}/></div></div>
           <button className="ai-card" onClick={() => setPanel('effects')}><div className="ai-icon"><WandSparkles size={16}/></div><div><strong>Make it move</strong><span>Explore effects and animation tools</span></div><ChevronRight size={16}/></button>
         </div> : panel==='effects' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><Sparkles size={20}/></div><strong>Effects &amp; finishing</strong><span>Build your look with editable effect stacks. More effects are on the roadmap.</span></div>{[['Blur & sharpen','Gaussian blur, directional blur'],['Color correction','Exposure, contrast, curves'],['Glow & light','Bloom, glow, light leaks'],['Keying & mattes','Chroma key, luma matte'],['Distortion','Transform, warp, displacement'],['Stylize','Grain, posterize, halftone']].map(([a,b])=><button key={a} className="effect-row" onClick={()=>setStatus(a+' selected — effect engine planned')}><span className="effect-thumb"><Aperture size={17}/></span><span><strong>{a}</strong><small>{b}</small></span><Plus size={15}/></button>)}<p className="note-text">Effect tiles are currently UI previews; effect processing is not implemented yet.</p></div> : panel==='audio' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><AudioLines size={20}/></div><strong>Audio workspace</strong><span>Import audio clips to add them as timeline layers. Waveform editing and mixing are planned.</span></div><button className="secondary-btn full-width" onClick={() => void importMedia()}><Upload size={15}/> Import audio or media</button><div className="inspector-section"><div className="section-title"><span>PROJECT AUDIO</span></div>{project.layers.filter(l=>l.kind==='audio').length ? project.layers.filter(l=>l.kind==='audio').map(l=><div className="audio-item" key={l.id}><AudioLines size={15}/><span>{l.name}</span></div>) : <div className="empty-inspector">No audio clips yet.</div>}</div></div> : <AgentPanel />}
       </aside>
