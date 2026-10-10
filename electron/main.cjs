@@ -3,7 +3,7 @@ const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { pathToFileURL } = require('node:url');
+const { pathToFileURL, fileURLToPath } = require('node:url');
 const { inspectFfmpeg } = require('./ffmpeg-runtime.cjs');
 const { createFfmpegFrameExporter, validateExportSpec } = require('./ffmpeg-export.cjs');
 
@@ -242,6 +242,19 @@ app.whenReady().then(() => {
     const runtime = inspectFfmpeg({ resourcesPath: process.resourcesPath, appPath: app.getAppPath() });
     if (!runtime.available) throw new Error(runtime.message || 'FFmpeg is unavailable');
     const spec = validateExportSpec({ width: input?.width, height: input?.height, fps: input?.fps });
+    const duration = Number(input?.duration);
+    if (!Number.isFinite(duration) || duration <= 0 || duration > 120) throw new Error('Export duration must be greater than 0 and at most 120 seconds');
+    const suppliedAudio = Array.isArray(input?.audioClips) ? input.audioClips : [];
+    if (suppliedAudio.length > 32) throw new Error('MP4 export supports up to 32 audio clips');
+    const audioClips = [];
+    for (const clip of suppliedAudio) {
+      if (!clip || typeof clip.url !== 'string' || !clip.url.startsWith('file:')) continue;
+      let clipPath;
+      try { clipPath = fileURLToPath(clip.url); } catch { continue; }
+      const stat = await fs.stat(clipPath).catch(() => null);
+      if (!stat?.isFile()) continue;
+      audioClips.push({ path: clipPath, start: clip.start, duration: clip.duration, volume: clip.volume, fadeIn: clip.fadeIn, fadeOut: clip.fadeOut });
+    }
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
       title: 'Export MP4 video',
       defaultPath: 'motion-studio-export.mp4',
@@ -255,17 +268,19 @@ app.whenReady().then(() => {
       outputPath: filePath,
       width: spec.width,
       height: spec.height,
-      fps: spec.fps
+      fps: spec.fps,
+      duration,
+      audioClips
     });
     const id = crypto.randomUUID();
-    ffmpegExportSession = { id, exporter, outputPath: filePath, frameCount: 0 };
+    ffmpegExportSession = { id, exporter, outputPath: filePath, frameCount: 0, duration };
     return { canceled: false, id, outputPath: filePath };
   });
 
   ipcMain.handle('export:ffmpeg-frame', async (_event, input) => {
     const session = ffmpegExportSession;
     if (!session || input?.id !== session.id) throw new Error('FFmpeg export session is not active');
-    if (session.frameCount >= 7200) throw new Error('FFmpeg export is limited to 7200 frames in this beta');
+    if (session.frameCount >= Math.ceil(session.duration * session.exporter.spec.fps)) throw new Error('All frames for this export have already been written');
     await session.exporter.writeFrame(input.frame);
     session.frameCount += 1;
     return { framesWritten: session.frameCount };
