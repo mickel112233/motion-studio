@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const { EventEmitter } = require('node:events');
+const { PassThrough } = require('node:stream');
 const { binaryName, candidatePaths, inspectFfmpeg, probeAudioStream } = require('./ffmpeg-runtime.cjs');
 
 test('selects the platform-specific FFmpeg executable name', () => {
@@ -51,18 +53,31 @@ test('does not treat failed, timed out, or unrelated executables as FFmpeg', () 
   assert.match(result.message, /browser-based WebM export/);
 });
 
-test('detects embedded audio streams with a sibling ffprobe without shell execution', () => {
+
+function fakeProbeSpawn({ code = 0, stdout = '', error = null } = {}, captured = []) {
+  return (executable, args, options) => {
+    captured.push({ executable, args, options });
+    const child = new EventEmitter();
+    child.stdout = new PassThrough();
+    child.kill = () => true;
+    queueMicrotask(() => {
+      if (stdout) child.stdout.write(stdout);
+      if (error) child.emit('error', error);
+      else child.emit('close', code);
+    });
+    return child;
+  };
+}
+
+test('detects embedded audio streams asynchronously with a sibling ffprobe and no shell', async () => {
   const calls = [];
-  const found = probeAudioStream({
+  const found = await probeAudioStream({
     platform: 'linux',
     ffmpegPath: '/tools/ffmpeg',
     filePath: '/media/source video.mp4',
     env: { PATH: '' },
     existsSync: candidate => candidate === '/tools/ffprobe',
-    spawnSync: (executable, args, options) => {
-      calls.push({ executable, args, options });
-      return { status: 0, stdout: '1\\n' };
-    }
+    spawnImpl: fakeProbeSpawn({ stdout: '1\\n' }, calls)
   });
   assert.equal(found, true);
   assert.equal(calls.length, 1);
@@ -71,11 +86,16 @@ test('detects embedded audio streams with a sibling ffprobe without shell execut
   assert.equal(calls[0].options.shell, false);
 });
 
-test('skips embedded audio when ffprobe is missing or the source has no audio stream', () => {
-  assert.equal(probeAudioStream({ ffmpegPath: '/tools/ffmpeg', filePath: '/media/silent.mp4', platform: 'linux', env: { PATH: '' }, existsSync: () => false }), false);
-  assert.equal(probeAudioStream({
+test('skips embedded audio when ffprobe is missing or the source has no audio stream', async () => {
+  assert.equal(await probeAudioStream({ ffmpegPath: '/tools/ffmpeg', filePath: '/media/silent.mp4', platform: 'linux', env: { PATH: '' }, existsSync: () => false }), false);
+  assert.equal(await probeAudioStream({
     ffmpegPath: '/tools/ffmpeg', filePath: '/media/silent.mp4', platform: 'linux', env: { PATH: '' },
     existsSync: candidate => candidate === '/tools/ffprobe',
-    spawnSync: () => ({ status: 0, stdout: '' })
+    spawnImpl: fakeProbeSpawn({ stdout: '' })
+  }), false);
+  assert.equal(await probeAudioStream({
+    ffmpegPath: '/tools/ffmpeg', filePath: '/media/broken.mp4', platform: 'linux', env: { PATH: '' },
+    existsSync: candidate => candidate === '/tools/ffprobe',
+    spawnImpl: fakeProbeSpawn({ code: 1, stdout: '' })
   }), false);
 });
