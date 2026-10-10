@@ -259,10 +259,11 @@ export default function App() {
       await drawComposition(canvas, project, 0);
       const canvasStream = canvas.captureStream(fps);
       stream = canvasStream;
+      let recordingStream: MediaStream = canvasStream;
       audioSession = await createAudioExportSession(project.layers);
-      if (audioSession) stream = new MediaStream([...canvasStream.getVideoTracks(), ...audioSession.stream.getAudioTracks()]);
+      if (audioSession) { recordingStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioSession.stream.getAudioTracks()]); stream = recordingStream; }
       const mimeType = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(type => MediaRecorder.isTypeSupported(type));
-      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : undefined);
       const recorded = new Promise<Blob>((resolve, reject) => {
         const chunks: BlobPart[] = [];
         recorder!.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data); };
