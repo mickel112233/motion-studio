@@ -5,6 +5,10 @@ export type ValidatedLayer = {
   color: string; visible: boolean; locked: boolean; start: number; duration: number;
   x: number; y: number; scale: number; rotation: number; opacity: number;
   text?: string; assetUrl?: string; volume?: number; muted?: boolean;
+  transitionIn?: { type: 'none' | 'fade' | 'wipe-left' | 'wipe-right' | 'zoom'; duration: number };
+  transitionOut?: { type: 'none' | 'fade' | 'wipe-left' | 'wipe-right' | 'zoom'; duration: number };
+  mask?: { type: 'none' | 'rectangle' | 'ellipse'; inset: number };
+  colorGrade?: { exposure: number; contrast: number; saturation: number; temperature: number; tint: number };
   effects?: { id: string; type: 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow'; enabled: boolean; value: number }[];
   keyframes: { time: number; x: number; y: number; scale: number; rotation: number; opacity: number; easing?: Easing }[];
 };
@@ -40,6 +44,22 @@ export function isValidProject(value: unknown): value is ValidatedProject {
     if (l.assetUrl !== undefined && typeof l.assetUrl !== 'string') return false;
     if (l.volume !== undefined && (!finite(l.volume) || l.volume < 0 || l.volume > 100)) return false;
     if (l.muted !== undefined && typeof l.muted !== 'boolean') return false;
+    for (const transitionKey of ['transitionIn','transitionOut']) {
+      if (l[transitionKey] !== undefined) {
+        const transition = l[transitionKey] as Record<string, unknown>;
+        if (!transition || typeof transition !== 'object' || Array.isArray(transition) || !['none','fade','wipe-left','wipe-right','zoom'].includes(String(transition.type)) || !finite(transition.duration) || transition.duration < 0 || transition.duration > Math.min(30, l.duration as number)) return false;
+      }
+    }
+    if (l.mask !== undefined) {
+      const mask = l.mask as Record<string, unknown>;
+      if (!mask || typeof mask !== 'object' || Array.isArray(mask) || !['none','rectangle','ellipse'].includes(String(mask.type)) || !finite(mask.inset) || mask.inset < 0 || mask.inset > 45) return false;
+    }
+    if (l.colorGrade !== undefined) {
+      const grade = l.colorGrade as Record<string, unknown>;
+      if (!grade || typeof grade !== 'object' || Array.isArray(grade)) return false;
+      const limits: Record<string, [number,number]> = { exposure: [-4,4], contrast: [0,200], saturation: [0,200], temperature: [-100,100], tint: [-100,100] };
+      for (const [key, [min,max]] of Object.entries(limits)) if (!finite(grade[key]) || (grade[key] as number) < min || (grade[key] as number) > max) return false;
+    }
     if (l.effects !== undefined) {
       const effectTypes = new Set(['blur','brightness','contrast','saturate','grayscale','sepia','hue-rotate','drop-shadow']);
       const limits: Record<string, number> = { blur:40, brightness:300, contrast:300, saturate:300, grayscale:100, sepia:100, 'hue-rotate':360, 'drop-shadow':50 };
