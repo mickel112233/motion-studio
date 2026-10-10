@@ -83,7 +83,7 @@ async function callTool(name, a) {
       value = p.layers.map(l => { const x = { ...l }; if (!a.includeKeyframes) delete x.keyframes; return x; }); break;
     case 'layers.create': {
       const kind = a.kind; fail(['text','shape','image','video','audio'].includes(kind), 'Unsupported layer kind');
-      const l = { id:'agent_' + crypto.randomBytes(6).toString('hex'), name:str(a.name,'name'), kind, color:a.color || '#a78bfa', visible:true, locked:false, start:a.start === undefined ? 0 : num(a.start,'start',0,p.duration), duration:a.duration === undefined ? 8 : num(a.duration,'duration',.01,86400), x:a.x === undefined ? 0 : num(a.x,'x',-100000,100000), y:a.y === undefined ? 0 : num(a.y,'y',-100000,100000), scale:1, rotation:0, opacity:100, keyframes:[{time:0,x:0,y:0,scale:1,rotation:0,opacity:100}] };
+      const l = { id:'agent_' + crypto.randomBytes(6).toString('hex'), name:str(a.name,'name'), kind, color:a.color || '#a78bfa', visible:true, locked:false, start:a.start === undefined ? 0 : num(a.start,'start',0,p.duration), duration:a.duration === undefined ? 8 : num(a.duration,'duration',.01,86400), x:a.x === undefined ? 0 : num(a.x,'x',-100000,100000), y:a.y === undefined ? 0 : num(a.y,'y',-100000,100000), scale:1, rotation:0, opacity:100, keyframes:[{time:a.start === undefined ? 0 : a.start,x:a.x === undefined ? 0 : a.x,y:a.y === undefined ? 0 : a.y,scale:1,rotation:0,opacity:100}] };
       if (a.color !== undefined) fail(/^#[0-9a-fA-F]{6}$/.test(a.color), 'Invalid hex color');
       if (a.text !== undefined) l.text = str(a.text,'text',10000); else if (kind === 'text') l.text = 'New text';
       p.layers.push(l); value = l; changed = true; break;
@@ -117,7 +117,7 @@ async function callTool(name, a) {
       const l = layer(p,str(a.id,'id',100)); fail(!l.locked, 'Unlock layer before adding keyframes');
       const t = num(a.time,'time',0,p.duration); const frames = Array.isArray(l.keyframes) ? l.keyframes : [];
       const old = frames.find(k => k.time === t) || {x:l.x||0,y:l.y||0,scale:l.scale||1,rotation:l.rotation||0,opacity:l.opacity??100};
-      const k = {time:t,x:old.x,y:old.y,scale:old.scale,rotation:old.rotation,opacity:old.opacity};
+      const k = {time:t,x:old.x,y:old.y,scale:old.scale,rotation:old.rotation,opacity:old.opacity,...(old.easing ? {easing:old.easing} : {})};
       for (const prop of ['x','y','scale','rotation','opacity']) if (a[prop] !== undefined) k[prop] = num(a[prop],prop,prop==='scale'?.001:prop==='opacity'?0:-360000,prop==='scale'?1000:prop==='opacity'?100:360000);
       if (a.easing !== undefined) { fail(['linear','ease-in','ease-out','ease-in-out','hold'].includes(a.easing), 'Invalid easing'); k.easing = a.easing; }\n      l.keyframes = [...frames.filter(f => f.time !== t),k].sort((x,y)=>x.time-y.time); value = k; changed = true; break;
     }
