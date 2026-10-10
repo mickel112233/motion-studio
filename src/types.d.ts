@@ -2,6 +2,11 @@ export {};
 declare global {
   interface Window {
     motionStudio?: {
+      listProviders: () => Promise<Array<{ id: string; name: string; kind: 'openai-compatible' | 'anthropic' | 'gemini'; baseUrl: string; model: string; hasApiKey: boolean; updatedAt: string }>>;
+      saveProvider: (provider: { id?: string; name: string; kind: 'openai-compatible' | 'anthropic' | 'gemini'; baseUrl: string; model: string; apiKey?: string }) => Promise<{ id: string; name: string; kind: 'openai-compatible' | 'anthropic' | 'gemini'; baseUrl: string; model: string; hasApiKey: boolean; updatedAt: string }>;
+      deleteProvider: (id: string) => Promise<{ deleted: boolean }>;
+      testProvider: (id: string) => Promise<{ ok: boolean; message: string }>;
+      askProvider: (input: { id: string; prompt: string; projectContext: string }) => Promise<{ ok: boolean; text: string }>;
       isDesktop: boolean;
       saveProject: (project: unknown) => Promise<{ canceled: boolean; conflict?: boolean; filePath?: string; data?: unknown }>;
       saveProjectAs: (project: unknown) => Promise<{ canceled: boolean; conflict?: boolean; filePath?: string }>;
