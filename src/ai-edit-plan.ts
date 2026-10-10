@@ -2,7 +2,7 @@ import { isValidProject, type ValidatedProject, type ValidatedLayer } from './pr
 
 export type EditPatch = Partial<Pick<ValidatedLayer,
   'name' | 'start' | 'duration' | 'x' | 'y' | 'scale' | 'rotation' | 'opacity' |
-  'text' | 'color' | 'visible' | 'volume' | 'muted' | 'effects' | 'transitionIn' | 'transitionOut' | 'mask' | 'colorGrade'
+  'text' | 'color' | 'visible' | 'volume' | 'muted' | 'audioFadeIn' | 'audioFadeOut' | 'effects' | 'transitionIn' | 'transitionOut' | 'mask' | 'colorGrade'
 >>;
 export type AiEditOperation =
   | { type: 'update-layer'; layerId: string; patch: EditPatch; reason?: string }
@@ -16,7 +16,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v =
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const text = (v: unknown, max = 200) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
 const color = (v: unknown) => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
-const allowedLayerPatch = new Set(['name','start','duration','x','y','scale','rotation','opacity','text','color','visible','volume','muted','effects','transitionIn','transitionOut','mask','colorGrade']);
+const allowedLayerPatch = new Set(['name','start','duration','x','y','scale','rotation','opacity','text','color','visible','volume','muted','audioFadeIn','audioFadeOut','effects','transitionIn','transitionOut','mask','colorGrade']);
 const allowedProjectPatch = new Set(['name','width','height','fps','duration']);
 
 export function parseAiEditPlan(raw: string): PlanValidation {
@@ -43,7 +43,7 @@ export function parseAiEditPlan(raw: string): PlanValidation {
         if (key === 'text' && (typeof v !== 'string' || v.length > 10000)) errors.push(`${label}: text must be a string under 10,000 characters.`);
         if (key === 'color' && !color(v)) errors.push(`${label}: color must be a hex RGB value.`);
         if (['visible','muted'].includes(key) && typeof v !== 'boolean') errors.push(`${label}: ${key} must be boolean.`);
-        if (['start','duration','x','y','scale','rotation','opacity','volume'].includes(key) && !finite(v)) errors.push(`${label}: ${key} must be finite.`);
+        if (['start','duration','x','y','scale','rotation','opacity','volume','audioFadeIn','audioFadeOut'].includes(key) && !finite(v)) errors.push(`${label}: ${key} must be finite.`);
         if (key === 'effects' && !Array.isArray(v)) errors.push(`${label}: effects must be an array.`);
         if (key === 'transitionIn' || key === 'transitionOut') {
           if (!isRecord(v) || !['none','fade','wipe-left','wipe-right','zoom'].includes(String(v.type)) || !finite(v.duration) || v.duration < 0 || v.duration > 30) errors.push(`${label}: ${key} must contain a supported transition type and duration from 0 to 30 seconds.`);
@@ -61,6 +61,8 @@ export function parseAiEditPlan(raw: string): PlanValidation {
       if (finite(p.scale) && (p.scale <= 0 || p.scale > 100)) errors.push(`${label}: scale must be between 0 and 100.`);
       if (finite(p.opacity) && (p.opacity < 0 || p.opacity > 100)) errors.push(`${label}: opacity must be between 0 and 100.`);
       if (finite(p.volume) && (p.volume < 0 || p.volume > 100)) errors.push(`${label}: volume must be between 0 and 100.`);
+      if (finite(p.audioFadeIn) && (p.audioFadeIn < 0 || p.audioFadeIn > 30)) errors.push(`${label}: audioFadeIn must be between 0 and 30 seconds.`);
+      if (finite(p.audioFadeOut) && (p.audioFadeOut < 0 || p.audioFadeOut > 30)) errors.push(`${label}: audioFadeOut must be between 0 and 30 seconds.`);
     } else if (op.type === 'add-layer') {
       if (!['text','shape'].includes(String(op.kind)) || !text(op.name, 200)) errors.push(`${label} can add only a named text or shape layer.`);
       for (const key of ['start','duration','x','y','scale','rotation','opacity']) if (op[key] !== undefined && !finite(op[key])) errors.push(`${label}: ${key} must be finite.`);
