@@ -368,6 +368,22 @@ export default function App() {
     }
   };
   const visibleLayers = useMemo(() => project.layers.filter(l => l.visible && isLayerActive(l, currentTime)).map(l => ({ ...l, ...evaluateTransform(l, currentTime) })), [project.layers, currentTime]);
+  useEffect(() => {
+    const videos = document.querySelectorAll<HTMLVideoElement>('.comp-video');
+    videos.forEach(video => {
+      const start = Number(video.dataset.layerStart || 0);
+      const target = Math.max(0, currentTime - start);
+      if (video.readyState >= 1) {
+        const safeTarget = Number.isFinite(video.duration) && video.duration > 0 ? Math.min(target, video.duration - 0.001) : target;
+        if (Math.abs(video.currentTime - safeTarget) > 0.2) {
+          try { video.currentTime = safeTarget; } catch { /* Wait for metadata before seeking. */ }
+        }
+      }
+      if (playing) { if (video.paused) void video.play().catch(() => {}); }
+      else video.pause();
+    });
+  }, [currentTime, playing, visibleLayers]);
+
   const scalePreview = Math.min(1, 760 / project.width, 430 / project.height) * zoom;
   const timeX = (t: number) => `${(t / project.duration) * 100}%`;
 
@@ -413,7 +429,7 @@ export default function App() {
                   const isSelected = selected === layer.id;
                   if (layer.kind === 'text') return <div key={layer.id} className={isSelected ? 'comp-text selected-comp' : 'comp-text'} style={{ left: x, top: y, transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100, filter: cssEffectFilter(layer.effects, layer.color), color: '#f4f2ff' }} onClick={() => setSelected(layer.id)}>{layer.text ?? layer.name}{isSelected && <span className="selection-box"/>}</div>;
                   if (layer.kind === 'image' && layer.assetUrl) return <img key={layer.id} className={isSelected ? 'comp-image selected-comp' : 'comp-image'} src={layer.assetUrl} style={{ left: x, top: y, transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100, filter: cssEffectFilter(layer.effects, layer.color) }} onClick={() => setSelected(layer.id)} />;
-                  if (layer.kind === 'video' && layer.assetUrl) return <video key={layer.id} className="comp-image" src={layer.assetUrl} muted autoPlay loop style={{ left: x, top: y, transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100, filter: cssEffectFilter(layer.effects, layer.color), maxWidth: '60%' }} onClick={() => setSelected(layer.id)} />;
+                  if (layer.kind === 'video' && layer.assetUrl) return <video key={layer.id} className="comp-image comp-video" data-layer-start={layer.start} src={layer.assetUrl} muted={false} autoPlay={playing} loop style={{ left: x, top: y, transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100, filter: cssEffectFilter(layer.effects, layer.color), maxWidth: '60%' }} onClick={() => setSelected(layer.id)} />;
                   if (layer.kind === 'audio') return null;
                   if (layer.kind === 'shape') return <div key={layer.id} className={isSelected ? 'comp-shape selected-comp' : 'comp-shape'} style={{ left: x, top: y, background: layer.color, transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100, filter: cssEffectFilter(layer.effects, layer.color) }} onClick={() => setSelected(layer.id)}>{isSelected && <span className="selection-box"/>}</div>;
                   return null;
