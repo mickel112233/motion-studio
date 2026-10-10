@@ -24,6 +24,7 @@ Open the **Agents** inspector tab, add a provider, choose its API type, set the 
 - Export a rendered PNG frame or animated WebM video from the canvas compositor (up to 120 seconds in this beta); MP4 is offered only when the current runtime advertises a compatible MediaRecorder encoder.
 - Undo/redo, visibility and locking controls, animated transform keyframes with linear/ease-in/ease-out/ease-in-out/hold interpolation, and editable outgoing easing.
 - Windows NSIS packaging configuration.
+- Export runtime diagnostics that look for FFmpeg in packaged/project runtime locations and PATH, verify the executable version, and clearly report that detection alone does not activate FFmpeg rendering.
 - **MCP server for external agents** to inspect/validate projects, create/update/duplicate/reorder/delete layers, change composition settings, set live effect stacks, and edit keyframes including easing.
 
 ## Run on Windows
@@ -87,7 +88,7 @@ The MCP server edits a configured saved project file and can update clip transit
 2. Property-level keyframes, bezier easing, graph curves and animation presets.
 3. Canvas/WebGL compositor, advanced masks, blend modes and effect stack.
 4. Live audio preview playback, waveform display and timeline synchronization.
-5. FFmpeg-backed export, audio muxing, image sequences, cancellation and detailed render errors.
+5. FFmpeg-backed export, audio muxing, image sequences, cancellation and detailed render errors. Runtime detection is implemented; actual FFmpeg rendering is still pending.
 6. Automated unit tests, renderer E2E tests and Windows packaging validation.
 7. Scoped MCP permissions, undoable agent transactions, task approvals and plugin/extension API.
 
