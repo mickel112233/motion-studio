@@ -66,7 +66,7 @@ Replace both example paths with real absolute paths. See docs/AGENTS-MCP.md for 
 
 ## Important scope notes
 
-This repository is an evolving foundation, **not a complete After Effects replacement yet**. The editor evaluates transform keyframes with interpolation and easing, and exports animated WebM from its canvas compositor. A GPU compositing/effects graph, waveform display and live audio preview mixing, production-grade color management, and an FFmpeg-based production export pipeline are not implemented. WebM export can mix imported audio clips with their volume/mute settings. The current filter stack uses CSS/canvas filters; some visual rendering details differ from the interactive DOM preview.
+This repository is an evolving foundation, **not a complete After Effects replacement yet**. The editor evaluates transform keyframes with interpolation and easing, and exports animated WebM from its canvas compositor. A GPU compositing/effects graph, waveform display and live audio preview mixing, production-grade color management, and an FFmpeg-based production export pipeline are not implemented. WebM export can mix audio clips and source-video audio with per-layer volume/mute settings. The current filter stack uses CSS/canvas filters; some visual rendering details differ from the interactive DOM preview.
 
 The MCP server edits a configured saved project file. The desktop app watches the active file and can reload agent edits; if local changes are unsaved, it prompts before replacing them and blocks a conflicting Save until resolved. Keep one writer agent active at a time and review agent-generated edits.
 
