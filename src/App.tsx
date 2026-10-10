@@ -428,7 +428,8 @@ export default function App() {
       setExportingVideo(true); setExportProgress(0); setPlaying(false); setStatus('Preparing FFmpeg MP4 export…');
       let sessionId: string | undefined;
       try {
-        const started = await window.motionStudio.beginFfmpegExport({ width: canvas.width, height: canvas.height, fps });
+        const audioClips = project.layers.filter(layer => layer.kind === 'audio' && layer.visible && !layer.muted && (layer.volume ?? 100) > 0 && layer.assetUrl).map(layer => ({ url: layer.assetUrl!, start: layer.start, duration: layer.duration, volume: layer.volume ?? 100, fadeIn: layer.audioFadeIn ?? 0, fadeOut: layer.audioFadeOut ?? 0 }));
+        const started = await window.motionStudio.beginFfmpegExport({ width: canvas.width, height: canvas.height, fps, duration: project.duration, audioClips });
         if (started.canceled) { setStatus('MP4 export cancelled'); return; }
         sessionId = started.id;
         const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -447,7 +448,7 @@ export default function App() {
         }
         const result = await window.motionStudio.finishFfmpegExport({ id: sessionId });
         sessionId = undefined;
-        setStatus(`MP4 exported: ${result.framesWritten} frames at ${fps} FPS. FFmpeg mode is currently video-only; use WebM export for audio mixing.`);
+        setStatus(`MP4 exported: ${result.framesWritten} frames at ${fps} FPS${result.audioClipCount ? ` with ${result.audioClipCount} audio clips` : '. No compatible local-file audio clips were included'}.`);
       } catch (error) {
         if (sessionId) await window.motionStudio.cancelFfmpegExport({ id: sessionId }).catch(() => {});
         sessionId = undefined;
