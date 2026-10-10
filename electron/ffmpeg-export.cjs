@@ -31,6 +31,7 @@ function createFfmpegFrameExporter({ executable, outputPath, width, height, fps,
     stderr = (stderr + chunk.toString()).slice(-16384);
   });
   child.on('error', error => { processError = error; });
+  child.stdin?.on('error', error => { processError = error; });
   const completion = new Promise((resolve, reject) => {
     child.on('close', (code, signal) => {
       closed = true;
