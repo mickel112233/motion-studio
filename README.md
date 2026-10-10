@@ -27,6 +27,10 @@ Open the **Agents** inspector tab, add a provider, choose its API type, set the 
 - Export runtime diagnostics that look for FFmpeg in packaged/project runtime locations and PATH, verify the executable version, and clearly report that detection alone does not activate FFmpeg rendering.
 - **MCP server for external agents** to inspect/validate projects, create/update/duplicate/reorder/delete layers, change composition settings, set live effect stacks, and edit keyframes including easing.
 
+## Export runtime detection
+
+Motion Studio checks for an FFmpeg executable in its expected runtime folders and on `PATH`. To make it detectable, install FFmpeg for your operating system and ensure `ffmpeg` (or `ffmpeg.exe` on Windows) is available on `PATH`, then restart Motion Studio. A local runtime can also be placed under `assets/runtime/ffmpeg/` when running from the project checkout. This check is diagnostic only: the current export path still uses browser `MediaRecorder`; the FFmpeg rendering and audio-mux pipeline is not connected yet.
+
 ## Run on Windows
 
 Install Node.js 20+ (Node 22 LTS recommended), then:
