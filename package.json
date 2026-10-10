@@ -1,8 +1,8 @@
 {
   "name": "motion-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "A local-first motion graphics and compositing desktop editor.",
+  "description": "A local-first motion graphics editor with an MCP interface for agents.",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
@@ -12,7 +12,9 @@
     "dist:win": "npm run build && electron-builder --win nsis",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:linux": "npm run build && electron-builder --linux",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "mcp:stdio": "node electron/mcp-server.cjs",
+    "mcp:check": "node --check electron/mcp-server.cjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
