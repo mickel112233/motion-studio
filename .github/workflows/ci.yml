@@ -22,7 +22,7 @@ jobs:
         run: node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/mcp-server.cjs
       - name: Test MCP server
         run: npm run test:mcp
-      - name: Test animation engine
+      - name: Test unit suite
         run: npm run test:unit
       - name: Type-check
         run: npm run typecheck
