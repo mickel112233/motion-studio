@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { binaryName, candidatePaths, inspectFfmpeg } = require('./ffmpeg-runtime.cjs');
+const { binaryName, candidatePaths, inspectFfmpeg, probeAudioStream } = require('./ffmpeg-runtime.cjs');
 
 test('selects the platform-specific FFmpeg executable name', () => {
   assert.equal(binaryName('win32'), 'ffmpeg.exe');
@@ -49,4 +49,33 @@ test('does not treat failed, timed out, or unrelated executables as FFmpeg', () 
   assert.equal(result.available, false);
   assert.equal(result.executable, null);
   assert.match(result.message, /browser-based WebM export/);
+});
+
+test('detects embedded audio streams with a sibling ffprobe without shell execution', () => {
+  const calls = [];
+  const found = probeAudioStream({
+    platform: 'linux',
+    ffmpegPath: '/tools/ffmpeg',
+    filePath: '/media/source video.mp4',
+    env: { PATH: '' },
+    existsSync: candidate => candidate === '/tools/ffprobe',
+    spawnSync: (executable, args, options) => {
+      calls.push({ executable, args, options });
+      return { status: 0, stdout: '1\\n' };
+    }
+  });
+  assert.equal(found, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].executable, '/tools/ffprobe');
+  assert.ok(calls[0].args.includes('/media/source video.mp4'));
+  assert.equal(calls[0].options.shell, false);
+});
+
+test('skips embedded audio when ffprobe is missing or the source has no audio stream', () => {
+  assert.equal(probeAudioStream({ ffmpegPath: '/tools/ffmpeg', filePath: '/media/silent.mp4', platform: 'linux', env: { PATH: '' }, existsSync: () => false }), false);
+  assert.equal(probeAudioStream({
+    ffmpegPath: '/tools/ffmpeg', filePath: '/media/silent.mp4', platform: 'linux', env: { PATH: '' },
+    existsSync: candidate => candidate === '/tools/ffprobe',
+    spawnSync: () => ({ status: 0, stdout: '' })
+  }), false);
 });
