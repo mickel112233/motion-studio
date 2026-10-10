@@ -105,7 +105,7 @@ async function callTool(name, a) {
       const l = layer(p,str(a.id,'id',100)); fail(a.patch && typeof a.patch === 'object' && !Array.isArray(a.patch), 'patch must be an object');
       const allowed = new Set(['name','color','visible','locked','start','duration','x','y','scale','rotation','opacity','volume','muted','text']);
       const entries = Object.entries(a.patch); fail(entries.length > 0, 'patch cannot be empty');
-      if (l.locked && !a.unlockFirst && a.patch.locked !== false) throw new Error('Layer is locked; pass unlockFirst=true to edit it');
+      if (l.locked && !a.unlockFirst && !(entries.length === 1 && a.patch.locked === false)) throw new Error('Layer is locked; unlock it first or pass unlockFirst=true to edit it');
       for (const [k,v] of entries) {
         fail(allowed.has(k), 'Property not allowed: ' + k);
         if (k === 'name') l.name = str(v,k);
