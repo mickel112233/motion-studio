@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evaluateTransform, isLayerActive, type Easing } from './animation';
-import { drawComposition } from './compositor';
+import { cssEffectFilter, drawComposition } from './compositor';
 import { isValidProject } from './project-validation';
 import {
   Activity, AlignCenter, Aperture, AudioLines, Bot, Box, ChevronDown, ChevronRight,
@@ -12,10 +12,12 @@ import {
 } from 'lucide-react';
 
 type LayerKind = 'text' | 'shape' | 'image' | 'video' | 'audio';
+type EffectType = 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow';
+type LayerEffect = { id: string; type: EffectType; enabled: boolean; value: number };
 type Layer = {
   id: string; name: string; kind: LayerKind; color: string; visible: boolean;
   locked: boolean; start: number; duration: number; x: number; y: number;
-  scale: number; rotation: number; opacity: number; text?: string; assetUrl?: string;
+  scale: number; rotation: number; opacity: number; text?: string; assetUrl?: string; effects?: LayerEffect[];
   keyframes: { time: number; x: number; y: number; scale: number; rotation: number; opacity: number; easing?: Easing }[];
 };
 type Project = { name: string; width: number; height: number; fps: number; duration: number; layers: Layer[] };
@@ -24,7 +26,7 @@ const colors = ['#a78bfa', '#5eead4', '#fbbf24', '#fb7185', '#60a5fa', '#c084fc'
 const initialLayer = (kind: LayerKind, name: string, index: number): Layer => ({
   id: uid(), name, kind, color: colors[index % colors.length], visible: true, locked: false,
   start: 0, duration: 8, x: 0, y: 0, scale: 1, rotation: 0, opacity: 100,
-  text: kind === 'text' ? 'Your next big idea.' : undefined,
+  text: kind === 'text' ? 'Your next big idea.' : undefined, effects: [],
   keyframes: [{ time: 0, x: 0, y: 0, scale: 1, rotation: 0, opacity: 100 }]
 });
 const upsertKeyframe = (layer: Layer, time: number, transformPatch: Partial<Pick<Layer, 'x' | 'y' | 'scale' | 'rotation' | 'opacity'>> = {}, easing?: Easing) => {
