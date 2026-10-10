@@ -21,16 +21,16 @@ Open the **Agents** inspector tab, add a provider, choose its API type, set the 
 - Import local image, video and audio files into the project layer list; edit independent per-track volume, mute, fade-in and fade-out envelopes, mixed during WebM/MP4 export where supported.
 - Playhead-synchronized video and audio preview with source audio controls.
 - Validated project open/save, Save As, atomic desktop writes, debounced autosave, recovery snapshots, external-file conflict detection that preserves the saved baseline until an external version is explicitly accepted, and a versioned project schema that upgrades legacy unversioned files to v1 in memory.
-- Export a rendered PNG frame or animated WebM video from the canvas compositor (up to 120 seconds in this beta); MP4 is offered only when the current runtime advertises a compatible MediaRecorder encoder.
+- Export a rendered PNG frame or animated WebM video from the canvas compositor (up to 120 seconds in this beta); MP4 uses browser MediaRecorder when available or the FFmpeg fallback when required.
 - Undo/redo, visibility and locking controls, animated transform keyframes with linear/ease-in/ease-out/ease-in-out/hold interpolation, and editable outgoing easing.
 - Windows NSIS packaging configuration.
-- FFmpeg-backed H.264 MP4 export from rendered RGBA frames, with bounded dimensions, progress, cancellation, and safe argument-based process launch. This initial FFmpeg path is video-only; browser WebM remains the option for audio mixing.
+- FFmpeg-backed H.264 MP4 export from rendered RGBA frames, with bounded dimensions, progress, cancellation, and safe argument-based process launch. The fallback mixes up to 32 local-file audio layers with timing, volume, and fade envelopes; browser WebM remains an alternative.
 - Export runtime diagnostics that look for FFmpeg in packaged/project runtime locations and PATH, verify the executable version, and report encoder availability.
 - **MCP server for external agents** to inspect/validate projects, create/update/duplicate/reorder/delete layers, change composition settings, set live effect stacks, and edit keyframes including easing.
 
 ## Export runtime detection
 
-Motion Studio checks for an FFmpeg executable in its expected runtime folders and on `PATH`. To make it detectable, install FFmpeg for your operating system and ensure `ffmpeg` (or `ffmpeg.exe` on Windows) is available on `PATH`, then restart Motion Studio. A local runtime can also be placed under `assets/runtime/ffmpeg/` when running from the project checkout. FFmpeg is used as an MP4 video-only fallback when detected and the browser does not support MP4 encoding. This initial path does not mux project audio; browser WebM remains the audio-capable export path. FFmpeg is not bundled with the installer, so install it separately or provide a runtime binary.
+Motion Studio checks for an FFmpeg executable in its expected runtime folders and on `PATH`. To make it detectable, install FFmpeg for your operating system and ensure `ffmpeg` (or `ffmpeg.exe` on Windows) is available on `PATH`, then restart Motion Studio. A local runtime can also be placed under `assets/runtime/ffmpeg/` when running from the project checkout. FFmpeg is used as an MP4 fallback when detected and the browser does not support MP4 encoding. The fallback mixes up to 32 audio layers backed by local files, including timeline offsets, volume, fade-in and fade-out. Audio layers available only as temporary browser object URLs are skipped; audio embedded in video clips and advanced routing are not yet supported. Browser WebM remains available as an alternative. FFmpeg is not bundled with the installer, so install it separately or provide a runtime binary.
 
 ## Run on Windows
 
