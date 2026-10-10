@@ -36,6 +36,8 @@ export function isValidProject(value: unknown): value is ValidatedProject {
     if ((l.start as number) < 0 || (l.start as number) > (p.duration as number) || (l.duration as number) <= 0 || (l.scale as number) <= 0 || (l.opacity as number) < 0 || (l.opacity as number) > 100) return false;
     if (l.text !== undefined && typeof l.text !== 'string') return false;
     if (l.assetUrl !== undefined && typeof l.assetUrl !== 'string') return false;
+    if (l.volume !== undefined && (!finite(l.volume) || l.volume < 0 || l.volume > 100)) return false;
+    if (l.muted !== undefined && typeof l.muted !== 'boolean') return false;
     if (l.effects !== undefined) {
       const effectTypes = new Set(['blur','brightness','contrast','saturate','grayscale','sepia','hue-rotate','drop-shadow']);
       const limits: Record<string, number> = { blur:40, brightness:300, contrast:300, saturate:300, grayscale:100, sepia:100, 'hue-rotate':360, 'drop-shadow':50 };
