@@ -18,7 +18,7 @@ Open the **Agents** inspector tab, add a provider, choose its API type, set the 
 - Frame-snapped timeline scrubbing, clip movement and trim-start/trim-end handles.
 - Text, shape and imported media layers; editable transforms, timing, color, composition dimensions and frame rate.
 - Live per-layer filter stack: blur, brightness, contrast, saturation, grayscale, sepia, hue rotation and drop shadow; clip transitions (fade, wipe and zoom), rectangle/ellipse masks, and basic exposure/contrast/saturation/temperature/tint controls.
-- Import local image, video and audio files into the project layer list; control audio volume and mute state.
+- Import local image, video and audio files into the project layer list; edit independent per-track volume, mute, fade-in and fade-out envelopes, mixed during WebM/MP4 export where supported.
 - Playhead-synchronized video and audio preview with source audio controls.
 - Validated project open/save, Save As, atomic desktop writes, debounced autosave, recovery snapshots, external-file conflict detection that preserves the saved baseline until an external version is explicitly accepted, and a versioned project schema that upgrades legacy unversioned files to v1 in memory.
 - Export a rendered PNG frame or animated WebM video from the canvas compositor (up to 120 seconds in this beta); MP4 is offered only when the current runtime advertises a compatible MediaRecorder encoder.
