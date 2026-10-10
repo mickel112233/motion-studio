@@ -7,7 +7,7 @@ const audioLayer = (overrides: Partial<RenderLayer> = {}): RenderLayer => ({
   start: 0, duration: 5, x: 0, y: 0, scale: 1, rotation: 0, opacity: 100,
   volume: 100, muted: false, assetUrl: 'file:///music.wav', keyframes: [],
   ...overrides
-});
+} as RenderLayer);
 
 describe('audio export preparation', () => {
   it('does not allocate audio resources when there are no audio clips', async () => {
