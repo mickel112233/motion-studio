@@ -30,6 +30,8 @@ function validateProject(data) {
     for (const key of ['start', 'duration', 'x', 'y', 'scale', 'rotation', 'opacity']) if (!Number.isFinite(layer[key])) throw new Error('Invalid ' + key + ' on layer ' + layer.id);
     if (layer.start < 0 || layer.start > data.duration || layer.duration <= 0 || layer.scale <= 0 || layer.opacity < 0 || layer.opacity > 100) throw new Error('Layer timing or transform is out of range: ' + layer.id);
     if (typeof layer.color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(layer.color)) throw new Error('Layer color is invalid: ' + layer.id);
+    if (layer.volume !== undefined && (!Number.isFinite(layer.volume) || layer.volume < 0 || layer.volume > 100)) throw new Error('Layer volume is invalid: ' + layer.id);
+    if (layer.muted !== undefined && typeof layer.muted !== 'boolean') throw new Error('Layer mute state is invalid: ' + layer.id);
     if (layer.effects !== undefined) {
       const limits = { blur:40, brightness:300, contrast:300, saturate:300, grayscale:100, sepia:100, 'hue-rotate':360, 'drop-shadow':50 };
       if (!Array.isArray(layer.effects) || layer.effects.length > 64) throw new Error('Layer effects are invalid: ' + layer.id);
