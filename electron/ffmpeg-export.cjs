@@ -12,18 +12,73 @@ function validateExportSpec({ width, height, fps }) {
   return { width, height, fps, frameBytes };
 }
 
-function createFfmpegFrameExporter({ executable, outputPath, width, height, fps, spawnImpl = spawn }) {
-  if (typeof executable !== 'string' || !executable) throw new Error('FFmpeg executable is required');
-  if (typeof outputPath !== 'string' || !outputPath) throw new Error('Export output path is required');
-  const spec = validateExportSpec({ width, height, fps });
+function normalizeAudioClips(audioClips, duration) {
+  if (!Array.isArray(audioClips)) return [];
+  if (audioClips.length > 32) throw new Error('MP4 export supports up to 32 audio clips per render');
+  return audioClips.map((clip, index) => {
+    if (!clip || typeof clip.path !== 'string' || !clip.path) throw new Error('Audio clip path is missing');
+    const start = Number(clip.start);
+    const clipDuration = Number(clip.duration);
+    const volume = Number(clip.volume ?? 100);
+    const fadeIn = Number(clip.fadeIn ?? 0);
+    const fadeOut = Number(clip.fadeOut ?? 0);
+    if (![start, clipDuration, volume, fadeIn, fadeOut].every(Number.isFinite) || start < 0 || clipDuration <= 0 || volume < 0 || volume > 100 || fadeIn < 0 || fadeOut < 0) {
+      throw new Error('Audio clip ' + index + ' has invalid timing or volume');
+    }
+    const effectiveDuration = Math.min(clipDuration, duration - start);
+    if (effectiveDuration <= 0 || volume === 0) return null;
+    let safeFadeIn = Math.min(fadeIn, effectiveDuration);
+    let safeFadeOut = Math.min(fadeOut, effectiveDuration);
+    if (safeFadeIn + safeFadeOut > effectiveDuration) {
+      const factor = effectiveDuration / (safeFadeIn + safeFadeOut);
+      safeFadeIn *= factor;
+      safeFadeOut *= factor;
+    }
+    return { path: clip.path, start, duration: effectiveDuration, volume: volume / 100, fadeIn: safeFadeIn, fadeOut: safeFadeOut };
+  }).filter(Boolean);
+}
+
+function buildFfmpegArgs({ width, height, fps, duration, outputPath, audioClips = [] }) {
+  const clips = normalizeAudioClips(audioClips, duration);
   const args = [
     '-hide_banner', '-loglevel', 'error', '-y',
     '-f', 'rawvideo', '-pixel_format', 'rgba',
-    '-video_size', spec.width + 'x' + spec.height,
-    '-framerate', String(spec.fps), '-i', 'pipe:0',
-    '-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
-    '-pix_fmt', 'yuv420p', '-movflags', '+faststart', outputPath
+    '-video_size', width + 'x' + height,
+    '-framerate', String(fps), '-i', 'pipe:0'
   ];
+  for (const clip of clips) args.push('-i', clip.path);
+  if (clips.length) {
+    const filters = clips.map((clip, index) => {
+      const inputIndex = index + 1;
+      const steps = [
+        'atrim=duration=' + clip.duration.toFixed(4),
+        'asetpts=PTS-STARTPTS',
+        'volume=' + clip.volume.toFixed(4)
+      ];
+      if (clip.fadeIn > 0) steps.push('afade=t=in:st=0:d=' + clip.fadeIn.toFixed(4));
+      if (clip.fadeOut > 0) steps.push('afade=t=out:st=' + Math.max(0, clip.duration - clip.fadeOut).toFixed(4) + ':d=' + clip.fadeOut.toFixed(4));
+      if (clip.start > 0) {
+        const delay = Math.round(clip.start * 1000);
+        steps.push('adelay=' + delay + '|' + delay);
+      }
+      return '[' + inputIndex + ':a:0]' + steps.join(',') + '[a' + index + ']';
+    });
+    filters.push(clips.map((_, index) => '[a' + index + ']').join('') + 'amix=inputs=' + clips.length + ':duration=longest:dropout_transition=0,atrim=duration=' + duration.toFixed(4) + '[aout]');
+    args.push('-filter_complex', filters.join(';'), '-map', '0:v:0', '-map', '[aout]', '-c:a', 'aac', '-b:a', '192k');
+  } else {
+    args.push('-map', '0:v:0', '-an');
+  }
+  args.push('-t', duration.toFixed(4), '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', outputPath);
+  return args;
+}
+
+function createFfmpegFrameExporter({ executable, outputPath, width, height, fps, duration, audioClips = [], spawnImpl = spawn }) {
+  if (typeof executable !== 'string' || !executable) throw new Error('FFmpeg executable is required');
+  if (typeof outputPath !== 'string' || !outputPath) throw new Error('Export output path is required');
+  const spec = validateExportSpec({ width, height, fps });
+  if (!Number.isFinite(duration) || duration <= 0 || duration > 120) throw new Error('Export duration must be greater than 0 and at most 120 seconds');
+  const clips = normalizeAudioClips(audioClips, duration);
+  const args = buildFfmpegArgs({ width: spec.width, height: spec.height, fps: spec.fps, duration, outputPath, audioClips: clips });
   const child = spawnImpl(executable, args, { shell: false, windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] });
   let stderr = '';
   let closed = false;
@@ -74,4 +129,4 @@ function createFfmpegFrameExporter({ executable, outputPath, width, height, fps,
   };
 }
 
-module.exports = { MAX_FRAME_BYTES, validateExportSpec, createFfmpegFrameExporter };
+module.exports = { MAX_FRAME_BYTES, validateExportSpec, normalizeAudioClips, buildFfmpegArgs, createFfmpegFrameExporter };
