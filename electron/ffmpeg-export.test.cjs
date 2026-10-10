@@ -38,8 +38,8 @@ test('builds a shell-free FFmpeg MP4 command and accepts exact-size RGBA frames'
   assert.ok(captured.args.includes('libx264'));
   assert.ok(captured.args.includes('/media/music.wav'));
   assert.ok(captured.args.includes('aac'));
-  assert.ok(captured.args.includes('adelay=500|500'));
   assert.ok(captured.args.includes('-filter_complex'));
+  assert.ok(captured.args[captured.args.indexOf('-filter_complex') + 1].includes('adelay=500|500'));
   await exporter.writeFrame(new Uint8Array(16 * 16 * 4));
   await assert.rejects(exporter.writeFrame(new Uint8Array(4)), /byte length/);
   await exporter.finish();
@@ -68,7 +68,7 @@ test('builds a synchronized audio mix with volume, fades, and timeline offsets',
   assert.match(filter, /afade=t=out:st=3\.0000:d=1\.0000/);
   assert.match(filter, /adelay=3000\|3000/);
   assert.match(filter, /amix=inputs=2/);
-  assert.ok(args.includes('[aout]'));
+  assert.ok(filter.includes('[aout]'));
   assert.equal(normalizeAudioClips([{ path: '/late.wav', start: 12, duration: 2, volume: 100 }], 10).length, 0);
 });
 
