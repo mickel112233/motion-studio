@@ -13,6 +13,7 @@ Motion Studio includes a local Model Context Protocol (MCP) server for compatibl
 - `layers.add_keyframe` — add or replace a transform keyframe, including linear, ease-in, ease-out, ease-in-out or hold easing.
 - `layers.duplicate` — duplicate a layer with optional position/time offsets.
 - `layers.reorder` — move a layer to a stack index.
+- `layers.set_effects` — replace a layer's supported CSS/canvas effect stack.
 - `project.update_settings` — update composition name, dimensions, FPS and duration.
 - Resource `motion-studio://project` — read project JSON.
 - Prompt `create_motion_sequence` — a guided project-aware editing workflow.
