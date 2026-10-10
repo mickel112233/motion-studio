@@ -106,3 +106,8 @@
 .export-format-select{max-width:110px;height:30px;padding:0 8px;border:1px solid #373442;border-radius:7px;background:#1b1922;color:#d9d6e4;font:inherit;font-size:11px;outline:none}
 .export-format-select:focus{border-color:#8e79bd}
 .export-format-select:disabled{opacity:.6}
+
+.audio-fades{display:flex;flex-direction:column;gap:8px;margin-top:9px;padding:8px;border-radius:7px;background:#1a1820}
+.audio-fades label{display:grid;grid-template-columns:52px minmax(0,1fr) 30px;align-items:center;gap:8px;color:#aaa6b7;font-size:10px}
+.audio-fades input[type=range]{min-width:0;width:100%;accent-color:#a78bfa}
+.audio-fades span{color:#d4cde4;text-align:right;font-variant-numeric:tabular-nums}
