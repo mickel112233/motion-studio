@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evaluateTransform, isLayerActive, type Easing } from './animation';
+import { drawComposition } from './compositor';
 import {
   Activity, AlignCenter, Aperture, AudioLines, Bot, Box, ChevronDown, ChevronRight,
   CircleHelp, Clapperboard, Clock3, Command, Copy, Download, Eye, EyeOff,
@@ -46,6 +47,8 @@ export default function App() {
   const [selected, setSelected] = useState(project.layers[1]?.id ?? '');
   const [currentTime, setCurrentTime] = useState(1.25);
   const [playing, setPlaying] = useState(false);
+  const [exportingVideo, setExportingVideo] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const [panel, setPanel] = useState<'project' | 'effects' | 'audio' | 'agents'>('project');
   const [tool, setTool] = useState<'select' | 'move' | 'text' | 'shape'>('select');
   const [zoom, setZoom] = useState(1);
@@ -151,42 +154,66 @@ export default function App() {
   const exportFrame = async () => {
     const canvas = document.querySelector<HTMLCanvasElement>('#composition-canvas');
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) { setStatus('Could not create export canvas'); return; }
-    ctx.clearRect(0, 0, project.width, project.height);
-    const bg = ctx.createLinearGradient(0, 0, project.width, project.height);
-    bg.addColorStop(0, '#151521'); bg.addColorStop(.55, '#24213a'); bg.addColorStop(1, '#151521');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, project.width, project.height);
-    const glow = ctx.createRadialGradient(project.width*.78, project.height*.28, 0, project.width*.78, project.height*.28, project.width*.42);
-    glow.addColorStop(0, '#3b2c61'); glow.addColorStop(1, '#3b2c6100');
-    ctx.fillStyle = glow; ctx.fillRect(0, 0, project.width, project.height);
-    for (const layer of visibleLayers) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, layer.opacity / 100));
-      ctx.translate(project.width/2 + layer.x, project.height/2 + layer.y);
-      ctx.rotate(layer.rotation * Math.PI / 180);
-      ctx.scale(layer.scale, layer.scale);
-      if (layer.kind === 'text') {
-        ctx.fillStyle = '#f4f2ff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.font = '700 106px DM Sans, sans-serif';
-        const lines = (layer.text ?? layer.name).split('\n');
-        lines.forEach((line, i) => ctx.fillText(line, 0, (i-(lines.length-1)/2)*120, project.width*.8));
-      } else if (layer.kind === 'shape') {
-        ctx.fillStyle = layer.color; ctx.shadowColor = layer.color + '88'; ctx.shadowBlur = 35;
-        ctx.beginPath(); ctx.roundRect(-135, -135, 270, 270, 35); ctx.fill();
-      } else if ((layer.kind === 'image' || layer.kind === 'video') && layer.assetUrl) {
-        try {
-          const media = document.querySelector<HTMLImageElement | HTMLVideoElement>(layer.kind === 'image' ? `img[src="${CSS.escape(layer.assetUrl)}"]` : `video[src="${CSS.escape(layer.assetUrl)}"]`);
-          if (media && (media instanceof HTMLVideoElement ? media.readyState >= 2 : media.complete)) {
-            const mw = media instanceof HTMLVideoElement ? media.videoWidth : media.naturalWidth;
-            const mh = media instanceof HTMLVideoElement ? media.videoHeight : media.naturalHeight;
-            if (mw && mh) { const k = Math.min(project.width*.65/mw, project.height*.7/mh); ctx.drawImage(media, -mw*k/2, -mh*k/2, mw*k, mh*k); }
-          }
-        } catch { /* Skip media that cannot be decoded by the current renderer. */ }
-      }
-      ctx.restore();
+    try {
+      await drawComposition(canvas, project, currentTime);
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}-${Math.round(currentTime * project.fps)}.png`;
+      a.href = url; a.click();
+      setStatus('Rendered frame exported as PNG');
+    } catch (error) {
+      setStatus(error instanceof Error ? 'Frame export failed: ' + error.message : 'Frame export failed');
     }
-    const a = document.createElement('a'); a.download = 'motion-studio-frame.png'; a.href = canvas.toDataURL('image/png'); a.click(); setStatus('Composition frame exported as PNG');
+  };
+  const exportVideo = async () => {
+    const canvas = document.querySelector<HTMLCanvasElement>('#composition-canvas');
+    if (!canvas) return;
+    if (typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') {
+      setStatus('Video export is not supported by this runtime'); return;
+    }
+    if (project.duration > 120) {
+      setStatus('Video export is limited to 120 seconds in this beta'); return;
+    }
+    const fps = Math.max(1, Math.min(60, Math.round(project.fps)));
+    const frameCount = Math.max(1, Math.ceil(project.duration * fps));
+    setExportingVideo(true); setExportProgress(0); setPlaying(false); setStatus('Preparing video export…');
+    let stream: MediaStream | undefined;
+    let recorder: MediaRecorder | undefined;
+    try {
+      await drawComposition(canvas, project, 0);
+      stream = canvas.captureStream(fps);
+      const mimeType = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(type => MediaRecorder.isTypeSupported(type));
+      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const recorded = new Promise<Blob>((resolve, reject) => {
+        const chunks: BlobPart[] = [];
+        recorder!.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data); };
+        recorder!.onerror = () => reject(new Error('The browser video encoder reported an error'));
+        recorder!.onstop = () => {
+          if (!chunks.length) reject(new Error('The encoder produced an empty video'));
+          else resolve(new Blob(chunks, { type: recorder!.mimeType || 'video/webm' }));
+        };
+      });
+      recorder.start(250);
+      for (let frame = 0; frame < frameCount; frame++) {
+        if (frame > 0) await drawComposition(canvas, project, frame / fps);
+        setExportProgress(Math.round(((frame + 1) / frameCount) * 100));
+        await new Promise(resolve => window.setTimeout(resolve, 1000 / fps));
+      }
+      recorder.stop();
+      const blob = await recorded;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.webm`;
+      a.href = url; a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+      setStatus(`Video exported as WebM (${fps} FPS)`);
+    } catch (error) {
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
+      setStatus(error instanceof Error ? 'Video export failed: ' + error.message : 'Video export failed');
+    } finally {
+      stream?.getTracks().forEach(track => track.stop());
+      setExportingVideo(false);
+    }
   };
   const visibleLayers = useMemo(() => project.layers.filter(l => l.visible && isLayerActive(l, currentTime)).map(l => ({ ...l, ...evaluateTransform(l, currentTime) })), [project.layers, currentTime]);
   const scalePreview = Math.min(1, 760 / project.width, 430 / project.height) * zoom;
@@ -204,7 +231,7 @@ export default function App() {
         <span className="top-divider small" />
         <button className="secondary-btn" onClick={() => void open()}><FolderOpen size={15}/> Open</button>
         <button className="secondary-btn" onClick={() => void save()}><Save size={15}/> Save</button>
-        <button className="primary-btn" onClick={exportFrame}><Download size={15}/> Export frame</button>
+        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><button className="primary-btn" onClick={() => void exportVideo()} disabled={exportingVideo}>{exportingVideo ? <><Film size={15}/> Rendering {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
       </div>
     </header>
 
