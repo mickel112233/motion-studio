@@ -45,7 +45,7 @@ function validate(p) {
         fail(Object.hasOwn(limits,effect.type) && typeof effect.enabled === 'boolean' && numeric(effect.value) && effect.value >= 0 && effect.value <= limits[effect.type], 'Invalid effect value: ' + l.id);
       }
     }
-    fail(l.keyframes === undefined || (Array.isArray(l.keyframes) && l.keyframes.length <= 10000), 'Invalid keyframes: ' + l.id);
+    fail(Array.isArray(l.keyframes) && l.keyframes.length <= 10000, 'Invalid keyframes: ' + l.id);
     for (const k of l.keyframes || []) {
       fail(k && numeric(k.time) && k.time >= 0 && k.time <= p.duration, 'Invalid keyframe time: ' + l.id);
       for (const key of ['x','y','scale','rotation','opacity']) fail(numeric(k[key]), 'Invalid keyframe property ' + key + ': ' + l.id);
