@@ -75,6 +75,7 @@ export default function App() {
   const [future, setFuture] = useState<Project[]>([]);
   const [activeTab, setActiveTab] = useState<'timeline' | 'graph'>('timeline');
   const fileInput = useRef<HTMLInputElement>(null);
+  const exportCancelRef = useRef(false);
   const selectedLayer = project.layers.find(l => l.id === selected) ?? project.layers[0];
   const selectedTransform = selectedLayer ? evaluateTransform(selectedLayer, currentTime) : undefined;
   const selectedKeyframe = selectedLayer?.keyframes.find(k => Math.abs(k.time - currentTime) < (1 / project.fps) / 2);
@@ -239,6 +240,7 @@ export default function App() {
     }
     const fps = Math.max(1, Math.min(60, Math.round(project.fps)));
     const frameCount = Math.max(1, Math.ceil(project.duration * fps));
+    exportCancelRef.current = false;
     setExportingVideo(true); setExportProgress(0); setPlaying(false); setStatus('Preparing video export…');
     let stream: MediaStream | undefined;
     let recorder: MediaRecorder | undefined;
@@ -258,12 +260,15 @@ export default function App() {
       });
       recorder.start(250);
       for (let frame = 0; frame < frameCount; frame++) {
+        if (exportCancelRef.current) break;
         if (frame > 0) await drawComposition(canvas, project, frame / fps);
         setExportProgress(Math.round(((frame + 1) / frameCount) * 100));
         await new Promise(resolve => window.setTimeout(resolve, 1000 / fps));
       }
+      const wasCancelled = exportCancelRef.current;
       recorder.stop();
       const blob = await recorded;
+      if (wasCancelled) { setStatus('Video export cancelled'); return; }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.webm`;
@@ -295,7 +300,7 @@ export default function App() {
         <button className="secondary-btn" onClick={() => void open()}><FolderOpen size={15}/> Open</button>
         <button className="secondary-btn" onClick={() => void save()}><Save size={15}/> Save</button>
         <button className="secondary-btn" onClick={() => void saveAs()}><Save size={15}/> Save As</button>
-        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><button className="primary-btn" onClick={() => void exportVideo()} disabled={exportingVideo}>{exportingVideo ? <><Film size={15}/> Rendering {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
+        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><button className="primary-btn" onClick={() => { if (exportingVideo) exportCancelRef.current = true; else void exportVideo(); }}>{exportingVideo ? <><Film size={15}/> Cancel {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
       </div>
     </header>
     {externalConflict && <div className="external-conflict-banner"><span><strong>External project conflict.</strong> An agent updated the saved file while you had local edits. Saving is paused to avoid overwriting the agent's work.</span><button className="secondary-btn" onClick={() => void open()}>Open / reload</button><button className="primary-btn" onClick={() => void saveAs()}>Save local copy as…</button></div>}
