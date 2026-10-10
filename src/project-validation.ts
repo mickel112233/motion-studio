@@ -4,7 +4,7 @@ export type ValidatedLayer = {
   id: string; name: string; kind: 'text' | 'shape' | 'image' | 'video' | 'audio';
   color: string; visible: boolean; locked: boolean; start: number; duration: number;
   x: number; y: number; scale: number; rotation: number; opacity: number;
-  text?: string; assetUrl?: string; volume?: number; muted?: boolean;
+  text?: string; assetUrl?: string; volume?: number; muted?: boolean; audioFadeIn?: number; audioFadeOut?: number;
   transitionIn?: { type: 'none' | 'fade' | 'wipe-left' | 'wipe-right' | 'zoom'; duration: number };
   transitionOut?: { type: 'none' | 'fade' | 'wipe-left' | 'wipe-right' | 'zoom'; duration: number };
   mask?: { type: 'none' | 'rectangle' | 'ellipse'; inset: number };
@@ -44,6 +44,8 @@ export function isValidProject(value: unknown): value is ValidatedProject {
     if (l.assetUrl !== undefined && typeof l.assetUrl !== 'string') return false;
     if (l.volume !== undefined && (!finite(l.volume) || l.volume < 0 || l.volume > 100)) return false;
     if (l.muted !== undefined && typeof l.muted !== 'boolean') return false;
+    if (l.audioFadeIn !== undefined && (!finite(l.audioFadeIn) || l.audioFadeIn < 0 || l.audioFadeIn > 30)) return false;
+    if (l.audioFadeOut !== undefined && (!finite(l.audioFadeOut) || l.audioFadeOut < 0 || l.audioFadeOut > 30)) return false;
     for (const transitionKey of ['transitionIn','transitionOut']) {
       if (l[transitionKey] !== undefined) {
         const transition = l[transitionKey] as Record<string, unknown>;
