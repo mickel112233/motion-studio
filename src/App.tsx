@@ -137,10 +137,17 @@ export default function App() {
   }, [isDirty, externalConflict]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
-      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) { e.preventDefault(); setPlaying(v => !v); }
-      if (e.key === 'Delete' && selectedLayer && !(e.target instanceof HTMLInputElement) && !selectedLayer.locked) {
+      const target = e.target;
+      const editingText = target instanceof HTMLElement && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName));
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+      if (editingText || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.code === 'Space') { e.preventDefault(); setPlaying(v => !v); }
+      if (e.key.toLowerCase() === 'v') setTool('select');
+      if (e.key.toLowerCase() === 'm') setTool('move');
+      if (e.key.toLowerCase() === 't') { setTool('text'); addLayer('text'); }
+      if (e.key.toLowerCase() === 'r') { setTool('shape'); addLayer('shape'); }
+      if (e.key === 'Delete' && selectedLayer && !selectedLayer.locked) {
         updateProject(p => ({ ...p, layers: p.layers.filter(l => l.id !== selected) })); setSelected('');
       }
     };
