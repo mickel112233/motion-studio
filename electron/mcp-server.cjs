@@ -48,7 +48,9 @@ const tools = [
  { name:'layers.create', description:'Create a layer. Writes the configured project file.', inputSchema:{type:'object',required:['kind','name'],properties:{kind:{type:'string',enum:['text','shape','image','video','audio']},name:{type:'string',minLength:1,maxLength:160},text:{type:'string',maxLength:10000},color:{type:'string',pattern:'^#[0-9a-fA-F]{6}$'},start:{type:'number',minimum:0},duration:{type:'number',exclusiveMinimum:0},x:{type:'number'},y:{type:'number'}},additionalProperties:false} },
  { name:'layers.update', description:'Update allowed properties of an existing layer. Locked layers require unlockFirst=true.', inputSchema:{type:'object',required:['id','patch'],properties:{id:{type:'string'},unlockFirst:{type:'boolean'},patch:{type:'object',properties:{name:{type:'string',maxLength:160},color:{type:'string',pattern:'^#[0-9a-fA-F]{6}$'},visible:{type:'boolean'},locked:{type:'boolean'},start:{type:'number',minimum:0},duration:{type:'number',exclusiveMinimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0,maximum:1000},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100},text:{type:'string',maxLength:10000}},additionalProperties:false}},additionalProperties:false} },
  { name:'layers.delete', description:'Destructively delete one layer; requires explicit confirm=true and layer must be unlocked.', inputSchema:{type:'object',required:['id','confirm'],properties:{id:{type:'string'},confirm:{type:'boolean',const:true}},additionalProperties:false} },
- { name:'layers.add_keyframe', description:'Add or replace a transform keyframe. Keyframe storage is supported; full animation interpolation is not yet implemented.', inputSchema:{type:'object',required:['id','time'],properties:{id:{type:'string'},time:{type:'number',minimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100}},additionalProperties:false} },
+ { name:'layers.add_keyframe', description:'Add or replace a transform keyframe. Keyframe storage is supported; full animation interpolation is not yet implemented.', inputSchema:{type:'object',required:['id','time'],properties:{id:{type:'string'},time:{type:'number',minimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100},easing:{type:'string',enum:['linear','ease-in','ease-out','ease-in-out','hold']}},additionalProperties:false} },
+ { name:'layers.duplicate', description:'Duplicate an existing unlocked or locked layer with a new ID and optional offset.', inputSchema:{type:'object',required:['id'],properties:{id:{type:'string'},name:{type:'string',maxLength:160},offsetX:{type:'number'},offsetY:{type:'number'},offsetTime:{type:'number',minimum:0}},additionalProperties:false} },
+ { name:'layers.reorder', description:'Move a layer to a new zero-based stack index.', inputSchema:{type:'object',required:['id','index'],properties:{id:{type:'string'},index:{type:'integer',minimum:0,maximum:9999}},additionalProperties:false} },
  { name:'project.update_settings', description:'Update project name, width, height, fps or duration.', inputSchema:{type:'object',properties:{name:{type:'string',maxLength:200},width:{type:'number',minimum:16,maximum:16384},height:{type:'number',minimum:16,maximum:16384},fps:{type:'number',minimum:1,maximum:240},duration:{type:'number',exclusiveMinimum:0,maximum:86400}},additionalProperties:false} }
 ];
 async function callTool(name, a) {
@@ -99,7 +101,29 @@ async function callTool(name, a) {
       const old = frames.find(k => k.time === t) || {x:l.x||0,y:l.y||0,scale:l.scale||1,rotation:l.rotation||0,opacity:l.opacity??100};
       const k = {time:t,x:old.x,y:old.y,scale:old.scale,rotation:old.rotation,opacity:old.opacity};
       for (const prop of ['x','y','scale','rotation','opacity']) if (a[prop] !== undefined) k[prop] = num(a[prop],prop,prop==='scale'?.001:prop==='opacity'?0:-360000,prop==='scale'?1000:prop==='opacity'?100:360000);
-      l.keyframes = [...frames.filter(f => f.time !== t),k].sort((x,y)=>x.time-y.time); value = k; changed = true; break;
+      if (a.easing !== undefined) { fail(['linear','ease-in','ease-out','ease-in-out','hold'].includes(a.easing), 'Invalid easing'); k.easing = a.easing; }\n      l.keyframes = [...frames.filter(f => f.time !== t),k].sort((x,y)=>x.time-y.time); value = k; changed = true; break;
+    }
+    case 'layers.duplicate': {
+      const source = layer(p,str(a.id,'id',100));
+      const copy = JSON.parse(JSON.stringify(source));
+      copy.id = 'agent_' + crypto.randomBytes(6).toString('hex');
+      copy.name = a.name === undefined ? str(source.name + ' copy','name',160) : str(a.name,'name',160);
+      copy.locked = false;
+      copy.x = num(source.x + (a.offsetX === undefined ? 24 : num(a.offsetX,'offsetX',-100000,100000)),'x',-100000,100000);
+      copy.y = num(source.y + (a.offsetY === undefined ? 24 : num(a.offsetY,'offsetY',-100000,100000)),'y',-100000,100000);
+      if (a.offsetTime !== undefined) {
+        const offset = num(a.offsetTime,'offsetTime',0,p.duration);
+        copy.start = Math.min(p.duration, source.start + offset);
+        copy.keyframes = (copy.keyframes || []).map(k => ({...k,time:Math.min(p.duration,k.time+offset)}));
+      }
+      p.layers.push(copy); value = copy; changed = true; break;
+    }
+    case 'layers.reorder': {
+      const l = layer(p,str(a.id,'id',100));
+      const index = num(a.index,'index',0,Math.max(0,p.layers.length-1));
+      p.layers = p.layers.filter(x => x.id !== l.id);
+      p.layers.splice(index,0,l);
+      value = {id:l.id,index:p.layers.findIndex(x => x.id === l.id),layerCount:p.layers.length}; changed = true; break;
     }
     case 'project.update_settings': {
       fail(Object.keys(a).length > 0, 'Provide at least one setting');
