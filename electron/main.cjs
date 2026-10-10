@@ -233,7 +233,7 @@ function createWindow() {
 }
 app.whenReady().then(() => {
 
-  ipcMain.handle('export:capabilities', async () => ({ ffmpeg: inspectFfmpeg(), browserMediaRecorder: Boolean(mainWindow && mainWindow.webContents) }));
+  ipcMain.handle('export:capabilities', async () => ({ ffmpeg: inspectFfmpeg() }));
 
   ipcMain.handle('providers:list', async () => (await readProviderStore()).map(publicProvider));
   ipcMain.handle('providers:save', async (_event, input) => {
