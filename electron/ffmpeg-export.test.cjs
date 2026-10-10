@@ -38,6 +38,7 @@ test('builds a shell-free FFmpeg MP4 command and accepts exact-size RGBA frames'
   assert.ok(captured.args.includes('libx264'));
   assert.ok(captured.args.includes('/media/music.wav'));
   assert.ok(captured.args.includes('aac'));
+  assert.ok(captured.args[captured.args.indexOf('-filter_complex') + 1].includes('volume=0.5000'));
   assert.ok(captured.args.includes('-filter_complex'));
   assert.ok(captured.args[captured.args.indexOf('-filter_complex') + 1].includes('adelay=500|500'));
   await exporter.writeFrame(new Uint8Array(16 * 16 * 4));
