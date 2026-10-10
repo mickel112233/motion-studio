@@ -442,4 +442,11 @@ app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
+app.on('before-quit', () => {
+  const session = ffmpegExportSession;
+  ffmpegExportSession = null;
+  if (session) {
+    void session.exporter.cancel().finally(() => fs.rm(session.outputPath, { force: true }).catch(() => {}));
+  }
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
