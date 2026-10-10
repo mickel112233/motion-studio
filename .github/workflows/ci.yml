@@ -18,8 +18,8 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
-      - name: Check MCP server syntax
-        run: npm run mcp:check
+      - name: Check Electron entrypoints
+        run: node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/mcp-server.cjs
       - name: Test MCP server
         run: npm run test:mcp
       - name: Test animation engine
