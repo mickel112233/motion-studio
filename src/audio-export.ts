@@ -35,13 +35,24 @@ export async function createAudioExportSession(layers: RenderLayer[]): Promise<A
       const audio = document.createElement('audio');
       audio.preload = 'auto';
       audio.src = layer.assetUrl!;
-      await waitUntilPlayable(audio);
-      const source = context.createMediaElementSource(audio);
-      const gain = context.createGain();
-      gain.gain.value = Math.max(0, Math.min(1, (layer.volume ?? 100) / 100));
-      source.connect(gain);
-      gain.connect(destination);
-      entries.push({ audio, layer });
+      try {
+        await waitUntilPlayable(audio);
+        const source = context.createMediaElementSource(audio);
+        const gain = context.createGain();
+        gain.gain.value = Math.max(0, Math.min(1, (layer.volume ?? 100) / 100));
+        source.connect(gain);
+        gain.connect(destination);
+        entries.push({ audio, layer });
+      } catch (error) {
+        audio.pause(); audio.removeAttribute('src'); audio.load();
+        if (layer.kind === 'video') continue;
+        throw new Error('Audio clip "' + layer.name + '": ' + (error instanceof Error ? error.message : 'unsupported media'));
+      }
+    }
+    if (!entries.length) {
+      destination.stream.getTracks().forEach(track => track.stop());
+      await context.close().catch(() => {});
+      return undefined;
     }
     await context.resume();
     return {
