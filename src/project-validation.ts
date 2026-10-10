@@ -36,6 +36,17 @@ export function isValidProject(value: unknown): value is ValidatedProject {
     if ((l.start as number) < 0 || (l.start as number) > (p.duration as number) || (l.duration as number) <= 0 || (l.scale as number) <= 0 || (l.opacity as number) < 0 || (l.opacity as number) > 100) return false;
     if (l.text !== undefined && typeof l.text !== 'string') return false;
     if (l.assetUrl !== undefined && typeof l.assetUrl !== 'string') return false;
+    if (l.effects !== undefined) {
+      const effectTypes = new Set(['blur','brightness','contrast','saturate','grayscale','sepia','hue-rotate','drop-shadow']);
+      const limits: Record<string, number> = { blur:40, brightness:300, contrast:300, saturate:300, grayscale:100, sepia:100, 'hue-rotate':360, 'drop-shadow':50 };
+      if (!Array.isArray(l.effects) || l.effects.length > 64) return false;
+      for (const rawEffect of l.effects) {
+        if (!rawEffect || typeof rawEffect !== 'object' || Array.isArray(rawEffect)) return false;
+        const effect = rawEffect as Record<string, unknown>;
+        if (typeof effect.id !== 'string' || !effect.id || effect.id.length > 160 || typeof effect.type !== 'string' || !effectTypes.has(effect.type) || typeof effect.enabled !== 'boolean' || !finite(effect.value)) return false;
+        if (effect.value < 0 || effect.value > limits[effect.type]) return false;
+      }
+    }
     if (!Array.isArray(l.keyframes) || l.keyframes.length > 10000) return false;
     for (const rawFrame of l.keyframes) {
       if (!rawFrame || typeof rawFrame !== 'object' || Array.isArray(rawFrame)) return false;
