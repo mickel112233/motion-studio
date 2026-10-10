@@ -18,6 +18,7 @@ const finite = (value: unknown): value is number => typeof value === 'number' &&
 export function isValidProject(value: unknown): value is ValidatedProject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const p = value as Record<string, unknown>;
+  if (p.schemaVersion !== undefined && p.schemaVersion !== 1) return false;
   if (typeof p.name !== 'string' || !p.name.trim() || p.name.length > 200) return false;
   if (!finite(p.width) || p.width < 16 || p.width > 16384 || !finite(p.height) || p.height < 16 || p.height > 16384) return false;
   if (!finite(p.fps) || p.fps < 1 || p.fps > 240 || !finite(p.duration) || p.duration < .1 || p.duration > 86400) return false;
