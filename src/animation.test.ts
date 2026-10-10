@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { applyEasing, evaluateTransform, isLayerActive, normalizeKeyframes } from './animation';
+import { applyEasing, evaluateTransform, isLayerActive, normalizeKeyframes, type AnimatableLayer } from './animation';
 
-const layer = (overrides: Record<string, unknown> = {}) => ({
+const layer = (overrides: Partial<AnimatableLayer> = {}) => ({
   start: 0, duration: 10, x: 0, y: 10, scale: 1, rotation: 0, opacity: 100,
   keyframes: [
     { time: 0, x: 0, y: 10, scale: 1, rotation: 0, opacity: 100 },
