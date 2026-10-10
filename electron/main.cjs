@@ -5,7 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { pathToFileURL, fileURLToPath } = require('node:url');
 const { inspectFfmpeg } = require('./ffmpeg-runtime.cjs');
-const { createFfmpegFrameExporter, validateExportSpec } = require('./ffmpeg-export.cjs');
+const { createFfmpegFrameExporter, validateExportSpec, validateCompletedFrameCount } = require('./ffmpeg-export.cjs');
 
 const isDev = !app.isPackaged;
 const MAX_PROJECT_BYTES = 20 * 1024 * 1024;
@@ -290,6 +290,7 @@ app.whenReady().then(() => {
     const session = ffmpegExportSession;
     if (!session || input?.id !== session.id) throw new Error('FFmpeg export session is not active');
     try {
+      validateCompletedFrameCount(session.frameCount, session.duration, session.exporter.spec.fps);
       await session.exporter.finish();
       return { outputPath: session.outputPath, framesWritten: session.frameCount, audioClipCount: session.audioClipCount };
     } catch (error) {
