@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, AlignCenter, Aperture, AudioLines, Box, ChevronDown, ChevronRight,
+  Activity, AlignCenter, Aperture, AudioLines, Bot, Box, ChevronDown, ChevronRight,
   CircleHelp, Clapperboard, Clock3, Command, Copy, Download, Eye, EyeOff,
   FilePlus2, Film, FolderOpen, Gauge, Grid2X2, Image, Layers3, Magnet, Maximize2,
   MoreHorizontal, MousePointer2, Move, Pause, Play, Plus, Redo2, Save, Scissors,
@@ -39,7 +39,7 @@ export default function App() {
   const [selected, setSelected] = useState(project.layers[1]?.id ?? '');
   const [currentTime, setCurrentTime] = useState(1.25);
   const [playing, setPlaying] = useState(false);
-  const [panel, setPanel] = useState<'project' | 'effects' | 'audio'>('project');
+  const [panel, setPanel] = useState<'project' | 'effects' | 'audio' | 'agents'>('project');
   const [tool, setTool] = useState<'select' | 'move' | 'text' | 'shape'>('select');
   const [zoom, setZoom] = useState(1);
   const [showGrid, setShowGrid] = useState(false);
@@ -236,7 +236,7 @@ export default function App() {
       </main>
 
       <aside className="inspector">
-        <div className="inspector-tabs"><button className={panel==='project'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('project')}>Properties</button><button className={panel==='effects'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('effects')}>Effects</button><button className={panel==='audio'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('audio')}>Audio</button></div>
+        <div className="inspector-tabs"><button className={panel==='project'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('project')}>Properties</button><button className={panel==='effects'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('effects')}>Effects</button><button className={panel==='audio'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('audio')}>Audio</button><button className={panel==='agents'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('agents')}><Bot size={13}/> Agents</button></div>
         {panel==='project' ? <div className="inspector-content">
           <div className="inspector-section"><div className="section-title"><span>TRANSFORM</span><button className="icon-btn tiny"><ChevronDown size={14}/></button></div>
             {selectedLayer ? <><div className="property-row"><label>Position X</label><NumberField value={selectedLayer.x} onChange={v=>updateLayer(selectedLayer.id,{x:v})}/></div><div className="property-row"><label>Position Y</label><NumberField value={selectedLayer.y} onChange={v=>updateLayer(selectedLayer.id,{y:v})}/></div><div className="property-row"><label>Scale</label><NumberField value={Math.round(selectedLayer.scale*100)} suffix="%" onChange={v=>updateLayer(selectedLayer.id,{scale:v/100})}/><KeyButton active={selectedLayer.keyframes.some(k=>k.time===currentTime)} onClick={()=>updateLayer(selectedLayer.id,{keyframes:[...selectedLayer.keyframes,{time:currentTime,x:selectedLayer.x,y:selectedLayer.y,scale:selectedLayer.scale,rotation:selectedLayer.rotation,opacity:selectedLayer.opacity}]})}/></div><div className="property-row"><label>Rotation</label><NumberField value={selectedLayer.rotation} suffix="°" onChange={v=>updateLayer(selectedLayer.id,{rotation:v})}/><KeyButton active={selectedLayer.keyframes.some(k=>k.time===currentTime)} onClick={()=>updateLayer(selectedLayer.id,{keyframes:[...selectedLayer.keyframes,{time:currentTime,x:selectedLayer.x,y:selectedLayer.y,scale:selectedLayer.scale,rotation:selectedLayer.rotation,opacity:selectedLayer.opacity}]})}/></div><div className="property-row"><label>Opacity</label><NumberField value={selectedLayer.opacity} suffix="%" onChange={v=>updateLayer(selectedLayer.id,{opacity:Math.max(0,Math.min(100,v))})}/><KeyButton active={selectedLayer.keyframes.some(k=>k.time===currentTime)} onClick={()=>updateLayer(selectedLayer.id,{keyframes:[...selectedLayer.keyframes,{time:currentTime,x:selectedLayer.x,y:selectedLayer.y,scale:selectedLayer.scale,rotation:selectedLayer.rotation,opacity:selectedLayer.opacity}]})}/></div></> : <div className="empty-inspector">Select a layer to edit its properties.</div>}
@@ -246,7 +246,7 @@ export default function App() {
           <div className="inspector-section"><div className="section-title"><span>TIMING</span><ChevronDown size={14}/></div>{selectedLayer && <><div className="property-row"><label>Start</label><NumberField value={selectedLayer.start} suffix="s" onChange={v=>updateLayer(selectedLayer.id,{start:Math.max(0,v)})}/></div><div className="property-row"><label>Duration</label><NumberField value={selectedLayer.duration} suffix="s" onChange={v=>updateLayer(selectedLayer.id,{duration:Math.max(.1,v)})}/></div></>}</div>
           <div className="inspector-section"><div className="section-title"><span>COMPOSITION</span><button className="icon-btn tiny" title="Composition settings"><Settings2 size={13}/></button></div><div className="property-row"><label>Width</label><NumberField value={project.width} onChange={v=>setProject(p=>({...p,width:Math.max(16,v)}))}/></div><div className="property-row"><label>Height</label><NumberField value={project.height} onChange={v=>setProject(p=>({...p,height:Math.max(16,v)}))}/></div><div className="property-row"><label>Frame rate</label><select className="field-select" value={project.fps} onChange={e=>setProject(p=>({...p,fps:Number(e.target.value)}))}><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></select></div><div className="property-row"><label>Duration</label><NumberField value={project.duration} suffix="s" onChange={v=>setProject(p=>({...p,duration:Math.max(1,v)}))}/></div></div>
           <button className="ai-card" onClick={() => setPanel('effects')}><div className="ai-icon"><WandSparkles size={16}/></div><div><strong>Make it move</strong><span>Explore effects and animation tools</span></div><ChevronRight size={16}/></button>
-        </div> : panel==='effects' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><Sparkles size={20}/></div><strong>Effects &amp; finishing</strong><span>Build your look with editable effect stacks. More effects are on the roadmap.</span></div>{[['Blur & sharpen','Gaussian blur, directional blur'],['Color correction','Exposure, contrast, curves'],['Glow & light','Bloom, glow, light leaks'],['Keying & mattes','Chroma key, luma matte'],['Distortion','Transform, warp, displacement'],['Stylize','Grain, posterize, halftone']].map(([a,b])=><button key={a} className="effect-row" onClick={()=>setStatus(a+' selected — effect engine planned')}><span className="effect-thumb"><Aperture size={17}/></span><span><strong>{a}</strong><small>{b}</small></span><Plus size={15}/></button>)}<p className="note-text">Effect tiles are currently UI previews; effect processing is not implemented yet.</p></div> : <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><AudioLines size={20}/></div><strong>Audio workspace</strong><span>Import audio clips to add them as timeline layers. Waveform editing and mixing are planned.</span></div><button className="secondary-btn full-width" onClick={() => void importMedia()}><Upload size={15}/> Import audio or media</button><div className="inspector-section"><div className="section-title"><span>PROJECT AUDIO</span></div>{project.layers.filter(l=>l.kind==='audio').length ? project.layers.filter(l=>l.kind==='audio').map(l=><div className="audio-item" key={l.id}><AudioLines size={15}/><span>{l.name}</span></div>) : <div className="empty-inspector">No audio clips yet.</div>}</div></div>}
+        </div> : panel==='effects' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><Sparkles size={20}/></div><strong>Effects &amp; finishing</strong><span>Build your look with editable effect stacks. More effects are on the roadmap.</span></div>{[['Blur & sharpen','Gaussian blur, directional blur'],['Color correction','Exposure, contrast, curves'],['Glow & light','Bloom, glow, light leaks'],['Keying & mattes','Chroma key, luma matte'],['Distortion','Transform, warp, displacement'],['Stylize','Grain, posterize, halftone']].map(([a,b])=><button key={a} className="effect-row" onClick={()=>setStatus(a+' selected — effect engine planned')}><span className="effect-thumb"><Aperture size={17}/></span><span><strong>{a}</strong><small>{b}</small></span><Plus size={15}/></button>)}<p className="note-text">Effect tiles are currently UI previews; effect processing is not implemented yet.</p></div> : panel==='audio' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><AudioLines size={20}/></div><strong>Audio workspace</strong><span>Import audio clips to add them as timeline layers. Waveform editing and mixing are planned.</span></div><button className="secondary-btn full-width" onClick={() => void importMedia()}><Upload size={15}/> Import audio or media</button><div className="inspector-section"><div className="section-title"><span>PROJECT AUDIO</span></div>{project.layers.filter(l=>l.kind==='audio').length ? project.layers.filter(l=>l.kind==='audio').map(l=><div className="audio-item" key={l.id}><AudioLines size={15}/><span>{l.name}</span></div>) : <div className="empty-inspector">No audio clips yet.</div>}</div></div> : <AgentPanel />}
       </aside>
     </div>
     <footer className="statusbar"><div><span className="status-led"/> Ready <span className="status-sep">/</span> Local project</div><div className="status-center"><span><Command size={12}/> S to save</span><span><Command size={12}/> Z to undo</span><span>Space to play</span></div><div>Motion Studio <span className="status-sep">·</span> 0.1.0</div></footer>
@@ -260,3 +260,39 @@ function KeyButton({active,onClick}:{active:boolean;onClick:()=>void}) { return 
 function LayerIcon({kind}:{kind:LayerKind}) { const props={size:14,strokeWidth:1.8}; if(kind==='text')return <Type {...props}/>;if(kind==='shape')return <Shapes {...props}/>;if(kind==='image')return <Image {...props}/>;if(kind==='video')return <Film {...props}/>;return <AudioLines {...props}/>; }
 function SkipBackIcon(){return <span className="skip-icon">|◀</span>}
 function SkipForwardIcon(){return <span className="skip-icon">▶|</span>}
+function AgentPanel() {
+  const [copied, setCopied] = useState(false);
+  const config = JSON.stringify({
+    mcpServers: {
+      "motion-studio": {
+        command: "node",
+        args: [
+          "C:/REPLACE/WITH/Motion-Studio/electron/mcp-server.cjs",
+          "--project",
+          "C:/REPLACE/WITH/YOUR-PROJECT.motion.json"
+        ]
+      }
+    }
+  }, null, 2);
+  const copyConfig = async () => {
+    try {
+      await navigator.clipboard.writeText(config);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return <div className="inspector-content agent-panel">
+    <div className="effect-intro"><div className="effect-spark"><Bot size={20}/></div><strong>Agent workspace</strong><span>Connect compatible AI agents through MCP to inspect and edit saved Motion Studio projects.</span></div>
+    <div className="agent-status"><span className="status-led"/><div><strong>MCP server available</strong><small>External client connection not detected by this panel.</small></div></div>
+    <div className="inspector-section"><div className="section-title"><span>QUICK CONNECT</span></div>
+      <ol className="agent-steps"><li>Save your composition as a project JSON file.</li><li>Install Node.js 20+ on this computer.</li><li>Copy the starter config and replace both example paths.</li><li>Add it to your MCP client's configuration, then restart that client.</li></ol>
+      <button className="primary-btn full-width" onClick={() => void copyConfig()}><Copy size={14}/>{copied ? 'Config copied' : 'Copy MCP config template'}</button>
+      <p className="note-text">This is a template, not an active connection. Use real absolute paths on your computer.</p>
+    </div>
+    <div className="inspector-section"><div className="section-title"><span>AGENT TOOLS</span></div>
+      {['Inspect and validate project','Create text, shape, image, video and audio layers','Update transforms, visibility, timing and text','Add keyframe data','Change composition dimensions and FPS','Delete layers only with explicit confirmation'].map(item => <div className="agent-tool-row" key={item}><span className="status-led"/><span>{item}</span></div>)}
+    </div>
+    <div className="agent-warning"><strong>Current boundary</strong><span>Agents edit the saved project file. Save before agent work and reopen after edits. Unsaved-state sync, live refresh and final video rendering are not yet implemented.</span></div>
+  </div>;
+}
