@@ -140,7 +140,7 @@ export default function App() {
       const target = e.target;
       const editingText = target instanceof HTMLElement && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName));
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); return; }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !editingText) { e.preventDefault(); undo(); return; }
       if (editingText || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.code === 'Space') { e.preventDefault(); setPlaying(v => !v); }
       if (e.key.toLowerCase() === 'v') setTool('select');
