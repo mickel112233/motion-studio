@@ -30,7 +30,7 @@ Open the **Agents** inspector tab, add a provider, choose its API type, set the 
 
 ## Export runtime detection
 
-Motion Studio checks for an FFmpeg executable in its expected runtime folders and on `PATH`. To make it detectable, install FFmpeg for your operating system and ensure `ffmpeg` (or `ffmpeg.exe` on Windows) is available on `PATH`, then restart Motion Studio. A local runtime can also be placed under `assets/runtime/ffmpeg/` when running from the project checkout. FFmpeg is used for MP4 video rendering when detected. This initial path does not mux project audio; browser WebM remains the audio-capable export path. FFmpeg is not bundled with the installer, so install it separately or provide a runtime binary.
+Motion Studio checks for an FFmpeg executable in its expected runtime folders and on `PATH`. To make it detectable, install FFmpeg for your operating system and ensure `ffmpeg` (or `ffmpeg.exe` on Windows) is available on `PATH`, then restart Motion Studio. A local runtime can also be placed under `assets/runtime/ffmpeg/` when running from the project checkout. FFmpeg is used as an MP4 video-only fallback when detected and the browser does not support MP4 encoding. This initial path does not mux project audio; browser WebM remains the audio-capable export path. FFmpeg is not bundled with the installer, so install it separately or provide a runtime binary.
 
 ## Run on Windows
 
