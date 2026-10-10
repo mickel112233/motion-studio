@@ -50,10 +50,12 @@ test('MCP server initializes and safely edits a configured project', async () =>
     assert.equal(blocked.result.isError, true);
     const unlock = await request(12, 'tools/call', { name: 'layers.update', arguments: { id: layerId, patch: { locked: false } } });
     assert.equal(unlock.result.isError, false);
-    const audioSettings = await request(13, 'tools/call', { name: 'layers.update', arguments: { id: layerId, patch: { volume: 65, muted: true, transitionIn: { type: 'fade', duration: 0.5 }, transitionOut: { type: 'wipe-left', duration: 1 }, mask: { type: 'ellipse', inset: 10 }, colorGrade: { exposure: 1, contrast: 110, saturation: 90, temperature: -10, tint: 5 } } } });
+    const audioSettings = await request(13, 'tools/call', { name: 'layers.update', arguments: { id: layerId, patch: { volume: 65, muted: true, audioFadeIn: 0.5, audioFadeOut: 1, transitionIn: { type: 'fade', duration: 0.5 }, transitionOut: { type: 'wipe-left', duration: 1 }, mask: { type: 'ellipse', inset: 10 }, colorGrade: { exposure: 1, contrast: 110, saturation: 90, temperature: -10, tint: 5 } } } });
     assert.equal(audioSettings.result.isError, false);
     assert.equal(audioSettings.result.structuredContent.result.volume, 65);
     assert.equal(audioSettings.result.structuredContent.result.muted, true);
+    assert.equal(audioSettings.result.structuredContent.result.audioFadeIn, 0.5);
+    assert.equal(audioSettings.result.structuredContent.result.audioFadeOut, 1);
     assert.equal(audioSettings.result.structuredContent.result.transitionIn.type, 'fade');
     assert.equal(audioSettings.result.structuredContent.result.mask.type, 'ellipse');
     assert.equal(audioSettings.result.structuredContent.result.colorGrade.exposure, 1);
@@ -72,6 +74,8 @@ test('MCP server initializes and safely edits a configured project', async () =>
     assert.equal(saved.layers[0].effects.length, 2);
     assert.equal(saved.layers[0].volume, 65);
     assert.equal(saved.layers[0].muted, true);
+    assert.equal(saved.layers[0].audioFadeIn, 0.5);
+    assert.equal(saved.layers[0].audioFadeOut, 1);
     assert.equal(saved.layers[0].transitionOut.type, 'wipe-left');
     assert.equal(saved.layers[0].mask.inset, 10);
     assert.equal(saved.layers[0].colorGrade.tint, 5);
