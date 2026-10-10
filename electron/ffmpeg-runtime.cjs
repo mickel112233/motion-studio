@@ -24,6 +24,23 @@ function candidatePaths({ platform = process.platform, resourcesPath = process.r
   return [...new Set(candidates)];
 }
 
+function probeAudioStream({ ffmpegPath, filePath, platform = process.platform, env = process.env, existsSync = fs.existsSync, spawnSync: run = spawnSync } = {}) {
+  if (typeof ffmpegPath !== 'string' || !ffmpegPath || typeof filePath !== 'string' || !filePath) return false;
+  const pathApi = platform === 'win32' ? path.win32 : path.posix;
+  const probeName = platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+  const candidates = [pathApi.join(pathApi.dirname(ffmpegPath), probeName)];
+  const delimiter = platform === 'win32' ? ';' : ':';
+  for (const entry of (env.PATH || '').split(delimiter).filter(Boolean)) candidates.push(pathApi.join(entry, probeName));
+  for (const executable of [...new Set(candidates)]) {
+    if (!existsSync(executable)) continue;
+    const result = run(executable, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=index', '-of', 'csv=p=0', filePath], {
+      encoding: 'utf8', windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024, shell: false
+    });
+    if (!result.error && result.status === 0 && String(result.stdout || '').trim()) return true;
+  }
+  return false;
+}
+
 function inspectFfmpeg(options = {}) {
   const existsSync = options.existsSync || fs.existsSync;
   const run = options.spawnSync || spawnSync;
@@ -45,4 +62,4 @@ function inspectFfmpeg(options = {}) {
   };
 }
 
-module.exports = { binaryName, candidatePaths, inspectFfmpeg };
+module.exports = { binaryName, candidatePaths, inspectFfmpeg, probeAudioStream };
