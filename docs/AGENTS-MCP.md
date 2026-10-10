@@ -1,5 +1,7 @@
 # MCP and agent integration
 
+The desktop editor also supports separately configured AI API profiles (OpenAI-compatible, Anthropic, and Gemini). API credentials are managed by the Electron main process and are not included in MCP project files. The AI edit assistant currently produces advice only; MCP tools remain the path for explicit project-file mutations.
+
 Motion Studio includes a local Model Context Protocol (MCP) server for compatible desktop agents. It uses Node.js built-ins and MCP JSON-RPC over stdio; no additional npm dependency is required.
 
 ## Available tools
