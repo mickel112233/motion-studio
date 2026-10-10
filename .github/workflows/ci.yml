@@ -18,6 +18,10 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
+      - name: Check MCP server syntax
+        run: npm run mcp:check
+      - name: Test MCP server
+        run: npm run test:mcp
       - name: Type-check
         run: npm run typecheck
       - name: Build renderer
