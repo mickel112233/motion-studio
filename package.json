@@ -1,6 +1,6 @@
 {
   "name": "motion-studio",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Local-first motion graphics editor with animated keyframes and MCP agent workflows.",
   "main": "electron/main.cjs",
