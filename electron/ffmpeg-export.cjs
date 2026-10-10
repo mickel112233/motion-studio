@@ -77,8 +77,7 @@ function createFfmpegFrameExporter({ executable, outputPath, width, height, fps,
   if (typeof outputPath !== 'string' || !outputPath) throw new Error('Export output path is required');
   const spec = validateExportSpec({ width, height, fps });
   if (!Number.isFinite(duration) || duration <= 0 || duration > 120) throw new Error('Export duration must be greater than 0 and at most 120 seconds');
-  const clips = normalizeAudioClips(audioClips, duration);
-  const args = buildFfmpegArgs({ width: spec.width, height: spec.height, fps: spec.fps, duration, outputPath, audioClips: clips });
+  const args = buildFfmpegArgs({ width: spec.width, height: spec.height, fps: spec.fps, duration, outputPath, audioClips });
   const child = spawnImpl(executable, args, { shell: false, windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] });
   let stderr = '';
   let closed = false;
