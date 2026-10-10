@@ -30,6 +30,13 @@ function validateProject(data) {
     for (const key of ['start', 'duration', 'x', 'y', 'scale', 'rotation', 'opacity']) if (!Number.isFinite(layer[key])) throw new Error('Invalid ' + key + ' on layer ' + layer.id);
     if (layer.start < 0 || layer.start > data.duration || layer.duration <= 0 || layer.scale <= 0 || layer.opacity < 0 || layer.opacity > 100) throw new Error('Layer timing or transform is out of range: ' + layer.id);
     if (typeof layer.color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(layer.color)) throw new Error('Layer color is invalid: ' + layer.id);
+    if (layer.effects !== undefined) {
+      const limits = { blur:40, brightness:300, contrast:300, saturate:300, grayscale:100, sepia:100, 'hue-rotate':360, 'drop-shadow':50 };
+      if (!Array.isArray(layer.effects) || layer.effects.length > 64) throw new Error('Layer effects are invalid: ' + layer.id);
+      for (const effect of layer.effects) {
+        if (!effect || typeof effect.id !== 'string' || !effect.id || !Object.hasOwn(limits, effect.type) || typeof effect.enabled !== 'boolean' || !Number.isFinite(effect.value) || effect.value < 0 || effect.value > limits[effect.type]) throw new Error('Layer effect is invalid: ' + layer.id);
+      }
+    }
     if (!Array.isArray(layer.keyframes) || layer.keyframes.length > 10000) throw new Error('Layer keyframes are invalid: ' + layer.id);
     for (const frame of layer.keyframes) {
       if (!frame || !Number.isFinite(frame.time) || frame.time < 0 || frame.time > data.duration) throw new Error('Keyframe time is invalid: ' + layer.id);
