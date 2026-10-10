@@ -59,6 +59,9 @@ const fmt = (t: number, fps = 30) => { const safe = Math.max(0, t); const m = Ma
 
 export default function App() {
   const [project, setProject] = useState<Project>(initialProject);
+  const latestProjectRef = useRef(project);
+  latestProjectRef.current = project;
+  const autosavePromiseRef = useRef<Promise<{ saved: boolean; recovery?: boolean; conflict?: boolean; filePath?: string; data?: unknown }> | null>(null);
   const [selected, setSelected] = useState(project.layers[1]?.id ?? '');
   const [currentTime, setCurrentTime] = useState(1.25);
   const [playing, setPlaying] = useState(false);
@@ -201,15 +204,22 @@ export default function App() {
   useEffect(() => {
     const api = window.motionStudio;
     if (!api || !isDirty || externalConflict) return;
+    const sourceProject = project;
     const snapshot = { ...project, schemaVersion: 1, autosavedAt: new Date().toISOString() };
     const timer = window.setTimeout(() => {
-      void api.autosaveProject(snapshot).then(result => {
+      const task = api.autosaveProject(snapshot);
+      autosavePromiseRef.current = task;
+      void task.then(result => {
         if (result.conflict) { setExternalConflict(true); setStatus('External edits detected — resolve conflict before saving'); return; }
-        if (result.saved) {
+        if (result.saved && latestProjectRef.current === sourceProject) {
           if (!result.recovery) setIsDirty(false);
           setStatus(result.recovery ? 'Recovery snapshot saved' : 'Autosaved');
         }
-      }).catch(() => setStatus('Autosave failed — use Save to keep your changes'));
+      }).catch(() => {
+        if (latestProjectRef.current === sourceProject) setStatus('Autosave failed — use Save to keep your changes');
+      }).finally(() => {
+        if (autosavePromiseRef.current === task) autosavePromiseRef.current = null;
+      });
     }, 1400);
     return () => window.clearTimeout(timer);
   }, [project, isDirty, externalConflict]);
@@ -246,6 +256,7 @@ export default function App() {
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
   });
   const save = async () => {
+    if (autosavePromiseRef.current) await autosavePromiseRef.current.catch(() => undefined);
     if (externalConflict) { setStatus('External changes conflict — use Open to reload or Save As to preserve your local version'); return; }
     const data = { ...project, savedAt: new Date().toISOString(), schemaVersion: 1 };
     if (window.motionStudio) {
@@ -258,6 +269,7 @@ export default function App() {
     }
   };
   const saveAs = async () => {
+    if (autosavePromiseRef.current) await autosavePromiseRef.current.catch(() => undefined);
     const data = { ...project, savedAt: new Date().toISOString(), schemaVersion: 1 };
     if (window.motionStudio) {
       try {
