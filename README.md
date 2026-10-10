@@ -4,6 +4,8 @@
 
 ## Current foundation
 
+**Version 0.5.0** adds guarded project-schema versioning and safer external-agent edit conflict handling.
+
 - Electron desktop shell with context isolation, sandboxed renderer and a narrow preload bridge.
 - React + TypeScript + Vite editor with composition preview, layers, timeline, playhead, inspector and keyboard shortcuts.
 - Frame-snapped timeline scrubbing, clip movement and trim-start/trim-end handles.
