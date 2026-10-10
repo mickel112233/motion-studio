@@ -5,6 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { inspectFfmpeg } = require('./ffmpeg-runtime.cjs');
+const { createFfmpegFrameExporter, validateExportSpec } = require('./ffmpeg-export.cjs');
 
 const isDev = !app.isPackaged;
 const MAX_PROJECT_BYTES = 20 * 1024 * 1024;
@@ -14,6 +15,7 @@ let lastNotifiedExternalHash = null;
 let projectWatcher = null;
 let watchTimer = null;
 let mainWindow = null;
+let ffmpegExportSession = null;
 
 function validateProject(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Project must be a JSON object');
@@ -234,6 +236,63 @@ function createWindow() {
 app.whenReady().then(() => {
 
   ipcMain.handle('export:capabilities', async () => ({ ffmpeg: inspectFfmpeg() }));
+
+  ipcMain.handle('export:ffmpeg-begin', async (_event, input) => {
+    if (ffmpegExportSession) throw new Error('Another FFmpeg export is already running');
+    const runtime = inspectFfmpeg();
+    if (!runtime.available) throw new Error(runtime.message || 'FFmpeg is unavailable');
+    const spec = validateExportSpec({ width: input?.width, height: input?.height, fps: input?.fps });
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export MP4 video',
+      defaultPath: 'motion-studio-export.mp4',
+      buttonLabel: 'Export MP4',
+      filters: [{ name: 'MP4 Video', extensions: ['mp4'] }]
+    });
+    if (canceled || !filePath) return { canceled: true };
+    if (path.extname(filePath).toLowerCase() !== '.mp4') throw new Error('Choose an .mp4 output filename');
+    const exporter = createFfmpegFrameExporter({
+      executable: runtime.executable,
+      outputPath: filePath,
+      width: spec.width,
+      height: spec.height,
+      fps: spec.fps
+    });
+    const id = crypto.randomUUID();
+    ffmpegExportSession = { id, exporter, outputPath: filePath, frameCount: 0 };
+    return { canceled: false, id, outputPath: filePath };
+  });
+
+  ipcMain.handle('export:ffmpeg-frame', async (_event, input) => {
+    const session = ffmpegExportSession;
+    if (!session || input?.id !== session.id) throw new Error('FFmpeg export session is not active');
+    if (session.frameCount >= 7200) throw new Error('FFmpeg export is limited to 7200 frames in this beta');
+    await session.exporter.writeFrame(input.frame);
+    session.frameCount += 1;
+    return { framesWritten: session.frameCount };
+  });
+
+  ipcMain.handle('export:ffmpeg-finish', async (_event, input) => {
+    const session = ffmpegExportSession;
+    if (!session || input?.id !== session.id) throw new Error('FFmpeg export session is not active');
+    try {
+      await session.exporter.finish();
+      return { outputPath: session.outputPath, framesWritten: session.frameCount };
+    } catch (error) {
+      await fs.rm(session.outputPath, { force: true }).catch(() => {});
+      throw error;
+    } finally {
+      if (ffmpegExportSession?.id === session.id) ffmpegExportSession = null;
+    }
+  });
+
+  ipcMain.handle('export:ffmpeg-cancel', async (_event, input) => {
+    const session = ffmpegExportSession;
+    if (!session || input?.id !== session.id) return { canceled: true };
+    ffmpegExportSession = null;
+    await session.exporter.cancel();
+    await fs.rm(session.outputPath, { force: true }).catch(() => {});
+    return { canceled: true };
+  });
 
   ipcMain.handle('providers:list', async () => (await readProviderStore()).map(publicProvider));
   ipcMain.handle('providers:save', async (_event, input) => {
