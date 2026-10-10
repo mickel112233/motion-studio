@@ -16,7 +16,8 @@
     "mcp:stdio": "node electron/mcp-server.cjs",
     "mcp:check": "node --check electron/mcp-server.cjs",
     "test:mcp": "node --test electron/mcp-server.test.cjs",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "test": "npm run test:unit && npm run test:mcp"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
