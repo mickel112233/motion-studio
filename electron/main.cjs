@@ -304,7 +304,7 @@ app.whenReady().then(() => {
     try {
       validateCompletedFrameCount(session.frameCount, session.duration, session.exporter.spec.fps);
       await session.exporter.finish();
-      return { outputPath: session.outputPath, framesWritten: session.frameCount, audioClipCount: session.audioClipCount };
+      return { outputPath: session.outputPath, framesWritten: session.frameCount, audioClipCount: session.audioClipCount, embeddedAudioCount: session.embeddedAudioCount };
     } catch (error) {
       await session.exporter.cancel().catch(() => {});
       await fs.rm(session.outputPath, { force: true }).catch(() => {});
