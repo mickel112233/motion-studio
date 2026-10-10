@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 
 type LayerKind = 'text' | 'shape' | 'image' | 'video' | 'audio';
+type ProviderKind = 'openai-compatible' | 'anthropic' | 'gemini';
+type ApiProvider = { id: string; name: string; kind: ProviderKind; baseUrl: string; model: string; hasApiKey: boolean; updatedAt: string };
 type EffectType = 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow';
 type LayerEffect = { id: string; type: EffectType; enabled: boolean; value: number };
 type Layer = {
@@ -565,7 +567,7 @@ export default function App() {
           <div className="inspector-section"><div className="section-title"><span>TIMING</span><ChevronDown size={14}/></div>{selectedLayer && <><div className="property-row"><label>Start</label><NumberField value={selectedLayer.start} suffix="s" onChange={v=>updateLayer(selectedLayer.id,{start:Math.max(0,v)})}/></div><div className="property-row"><label>Duration</label><NumberField value={selectedLayer.duration} suffix="s" onChange={v=>updateLayer(selectedLayer.id,{duration:Math.max(.1,v)})}/></div></>}</div>
           <div className="inspector-section"><div className="section-title"><span>COMPOSITION</span><button className="icon-btn tiny" title="Composition settings"><Settings2 size={13}/></button></div><div className="property-row"><label>Width</label><NumberField value={project.width} onChange={v=>updateProject(p=>({...p,width:Math.max(16,Math.min(16384,Math.round(v)))}))}/></div><div className="property-row"><label>Height</label><NumberField value={project.height} onChange={v=>updateProject(p=>({...p,height:Math.max(16,Math.min(16384,Math.round(v)))}))}/></div><div className="property-row"><label>Frame rate</label><select className="field-select" value={project.fps} onChange={e=>updateProject(p=>({...p,fps:Number(e.target.value)}))}><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></select></div><div className="property-row"><label>Duration</label><NumberField value={project.duration} suffix="s" onChange={v=>updateProject(p=>({...p,duration:Math.max(1,Math.min(86400,v))}))}/></div></div>
           <button className="ai-card" onClick={() => setPanel('effects')}><div className="ai-icon"><WandSparkles size={16}/></div><div><strong>Make it move</strong><span>Explore effects and animation tools</span></div><ChevronRight size={16}/></button>
-        </div> : panel==='effects' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><Sparkles size={20}/></div><strong>Live effects stack</strong><span>These filters affect the selected layer in the preview and canvas exports.</span></div>{selectedLayer ? <><label className="field-label">Add effect<select className="field-select" value="" onChange={e=>{const type=e.target.value as EffectType;if(!type)return;const effect={id:uid(),type,enabled:true,value:effectDefaults[type].initial};updateLayer(selectedLayer.id,{effects:[...(selectedLayer.effects??[]),effect]});}}><option value="">Choose a filter…</option><option value="blur">Gaussian blur</option><option value="brightness">Brightness</option><option value="contrast">Contrast</option><option value="saturate">Saturation</option><option value="grayscale">Grayscale</option><option value="sepia">Sepia</option><option value="hue-rotate">Hue rotation</option><option value="drop-shadow">Drop shadow</option></select></label><div className="effect-stack">{(selectedLayer.effects??[]).length ? (selectedLayer.effects??[]).map(effect=>{const meta=effectDefaults[effect.type];return <div className="effect-control" key={effect.id}><div className="effect-control-head"><label><input type="checkbox" checked={effect.enabled} onChange={e=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).map(item=>item.id===effect.id?{...item,enabled:e.target.checked}:item)})}/><strong>{meta.label}</strong></label><button className="footer-button" onClick={()=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).filter(item=>item.id!==effect.id)})}>Remove</button></div><div className="effect-control-value"><input aria-label={meta.label+' amount'} type="range" min={meta.min} max={meta.max} step={1} value={effect.value} onChange={e=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).map(item=>item.id===effect.id?{...item,value:Number(e.target.value)}:item)})}/><span>{effect.value}{meta.unit}</span></div></div>}) : <div className="empty-inspector">No effects on this layer. Add a filter above.</div>}</div></> : <div className="empty-inspector">Select a layer to edit its effects.</div>}<p className="note-text">Filters are real CSS/canvas effects. Advanced GPU effects, masks, keying and procedural compositing are not implemented yet.</p></div> : panel==='audio' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><AudioLines size={20}/></div><strong>Audio workspace</strong><span>Control source audio from audio and video layers. Volume and mute settings are applied to WebM exports; waveform display and advanced audio routing are still planned.</span></div><button className="secondary-btn full-width" onClick={() => void importMedia()}><Upload size={15}/> Import audio or media</button><div className="inspector-section"><div className="section-title"><span>PROJECT AUDIO</span></div>{project.layers.filter(l=>l.kind==='audio'||l.kind==='video').length ? project.layers.filter(l=>l.kind==='audio'||l.kind==='video').map(l=><div className="audio-item" key={l.id}><div className="audio-item-title"><AudioLines size={15}/><span>{l.name}</span></div><div className="audio-controls"><label><input type="checkbox" checked={l.muted??false} onChange={e=>updateLayer(l.id,{muted:e.target.checked})}/> Mute</label><input aria-label={`Volume for ${l.name}`} type="range" min="0" max="100" value={l.volume??100} onChange={e=>updateLayer(l.id,{volume:Number(e.target.value)})}/><span>{l.volume??100}%</span></div></div>) : <div className="empty-inspector">No audio clips yet.</div>}</div></div> : <AgentPanel />}
+        </div> : panel==='effects' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><Sparkles size={20}/></div><strong>Live effects stack</strong><span>These filters affect the selected layer in the preview and canvas exports.</span></div>{selectedLayer ? <><label className="field-label">Add effect<select className="field-select" value="" onChange={e=>{const type=e.target.value as EffectType;if(!type)return;const effect={id:uid(),type,enabled:true,value:effectDefaults[type].initial};updateLayer(selectedLayer.id,{effects:[...(selectedLayer.effects??[]),effect]});}}><option value="">Choose a filter…</option><option value="blur">Gaussian blur</option><option value="brightness">Brightness</option><option value="contrast">Contrast</option><option value="saturate">Saturation</option><option value="grayscale">Grayscale</option><option value="sepia">Sepia</option><option value="hue-rotate">Hue rotation</option><option value="drop-shadow">Drop shadow</option></select></label><div className="effect-stack">{(selectedLayer.effects??[]).length ? (selectedLayer.effects??[]).map(effect=>{const meta=effectDefaults[effect.type];return <div className="effect-control" key={effect.id}><div className="effect-control-head"><label><input type="checkbox" checked={effect.enabled} onChange={e=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).map(item=>item.id===effect.id?{...item,enabled:e.target.checked}:item)})}/><strong>{meta.label}</strong></label><button className="footer-button" onClick={()=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).filter(item=>item.id!==effect.id)})}>Remove</button></div><div className="effect-control-value"><input aria-label={meta.label+' amount'} type="range" min={meta.min} max={meta.max} step={1} value={effect.value} onChange={e=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).map(item=>item.id===effect.id?{...item,value:Number(e.target.value)}:item)})}/><span>{effect.value}{meta.unit}</span></div></div>}) : <div className="empty-inspector">No effects on this layer. Add a filter above.</div>}</div></> : <div className="empty-inspector">Select a layer to edit its effects.</div>}<p className="note-text">Filters are real CSS/canvas effects. Advanced GPU effects, masks, keying and procedural compositing are not implemented yet.</p></div> : panel==='audio' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><AudioLines size={20}/></div><strong>Audio workspace</strong><span>Control source audio from audio and video layers. Volume and mute settings are applied to WebM exports; waveform display and advanced audio routing are still planned.</span></div><button className="secondary-btn full-width" onClick={() => void importMedia()}><Upload size={15}/> Import audio or media</button><div className="inspector-section"><div className="section-title"><span>PROJECT AUDIO</span></div>{project.layers.filter(l=>l.kind==='audio'||l.kind==='video').length ? project.layers.filter(l=>l.kind==='audio'||l.kind==='video').map(l=><div className="audio-item" key={l.id}><div className="audio-item-title"><AudioLines size={15}/><span>{l.name}</span></div><div className="audio-controls"><label><input type="checkbox" checked={l.muted??false} onChange={e=>updateLayer(l.id,{muted:e.target.checked})}/> Mute</label><input aria-label={`Volume for ${l.name}`} type="range" min="0" max="100" value={l.volume??100} onChange={e=>updateLayer(l.id,{volume:Number(e.target.value)})}/><span>{l.volume??100}%</span></div></div>) : <div className="empty-inspector">No audio clips yet.</div>}</div></div> : <AgentPanel projectContext={JSON.stringify({ name: project.name, width: project.width, height: project.height, fps: project.fps, duration: project.duration, layers: project.layers.map(({id,name,kind,start,duration,visible,locked}) => ({id,name,kind,start,duration,visible,locked})) })} />}
       </aside>
     </div>
     <footer className="statusbar"><div><span className="status-led"/> Ready <span className="status-sep">/</span> Local project</div><div className="status-center"><span><Command size={12}/> S to save</span><span><Command size={12}/> Z to undo</span><span>Space to play</span></div><div>Motion Studio <span className="status-sep">·</span> 0.4.0</div></footer>
@@ -579,39 +581,120 @@ function KeyButton({active,onClick}:{active:boolean;onClick:()=>void}) { return 
 function LayerIcon({kind}:{kind:LayerKind}) { const props={size:14,strokeWidth:1.8}; if(kind==='text')return <Type {...props}/>;if(kind==='shape')return <Shapes {...props}/>;if(kind==='image')return <Image {...props}/>;if(kind==='video')return <Film {...props}/>;return <AudioLines {...props}/>; }
 function SkipBackIcon(){return <span className="skip-icon">|◀</span>}
 function SkipForwardIcon(){return <span className="skip-icon">▶|</span>}
-function AgentPanel() {
+function AgentPanel({ projectContext }: { projectContext: string }) {
   const [copied, setCopied] = useState(false);
-  const config = JSON.stringify({
-    mcpServers: {
-      "motion-studio": {
-        command: "node",
-        args: [
-          "C:/REPLACE/WITH/Motion-Studio/electron/mcp-server.cjs",
-          "--project",
-          "C:/REPLACE/WITH/YOUR-PROJECT.motion.json"
-        ]
-      }
-    }
-  }, null, 2);
+  const [providers, setProviders] = useState<ApiProvider[]>([]);
+  const [providerId, setProviderId] = useState('');
+  const [providerName, setProviderName] = useState('OpenAI API');
+  const [providerKind, setProviderKind] = useState<ProviderKind>('openai-compatible');
+  const [baseUrl, setBaseUrl] = useState('https://api.openai.com/v1');
+  const [model, setModel] = useState('gpt-4.1-mini');
+  const [apiKey, setApiKey] = useState('');
+  const [providerBusy, setProviderBusy] = useState(false);
+  const [providerStatus, setProviderStatus] = useState('');
+  const [editPrompt, setEditPrompt] = useState('');
+  const [editAnswer, setEditAnswer] = useState('');
+  const [asking, setAsking] = useState(false);
+  const defaults: Record<ProviderKind, { name: string; url: string; model: string }> = {
+    'openai-compatible': { name: 'OpenAI API', url: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' },
+    anthropic: { name: 'Anthropic Claude', url: 'https://api.anthropic.com', model: 'claude-sonnet-4-5' },
+    gemini: { name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.5-flash' }
+  };
+  const config = JSON.stringify({ mcpServers: { 'motion-studio': { command: 'node', args: ['C:/REPLACE/WITH/Motion-Studio/electron/mcp-server.cjs', '--project', 'C:/REPLACE/WITH/YOUR-PROJECT.motion.json'] } } }, null, 2);
+  useEffect(() => {
+    const api = window.motionStudio;
+    if (!api) { setProviderStatus('API connections are available in the Electron desktop app.'); return; }
+    void api.listProviders().then(list => { setProviders(list); if (list[0]) setProviderId(list[0].id); }).catch(error => setProviderStatus(error instanceof Error ? error.message : 'Could not load saved providers'));
+  }, []);
   const copyConfig = async () => {
+    try { await navigator.clipboard.writeText(config); setCopied(true); }
+    catch { setCopied(false); }
+  };
+  const resetProviderForm = () => {
+    setProviderId('');
+    setProviderKind('openai-compatible');
+    setProviderName(defaults['openai-compatible'].name);
+    setBaseUrl(defaults['openai-compatible'].url);
+    setModel(defaults['openai-compatible'].model);
+    setApiKey('');
+    setProviderStatus('');
+  };
+  const editProvider = (id: string) => {
+    const provider = providers.find(item => item.id === id);
+    if (!provider) { resetProviderForm(); return; }
+    setProviderId(provider.id); setProviderName(provider.name); setProviderKind(provider.kind);
+    setBaseUrl(provider.baseUrl); setModel(provider.model); setApiKey('');
+    setProviderStatus('Enter a new key only if you want to replace the saved credential.');
+  };
+  const saveProvider = async () => {
+    const api = window.motionStudio;
+    if (!api) { setProviderStatus('Open Motion Studio as a desktop app to save API credentials securely.'); return; }
+    if (!providerId && !apiKey.trim()) { setProviderStatus('Enter an API key to add this provider.'); return; }
+    setProviderBusy(true); setProviderStatus('');
     try {
-      await navigator.clipboard.writeText(config);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
+      const saved = await api.saveProvider({ id: providerId || undefined, name: providerName, kind: providerKind, baseUrl, model, apiKey: apiKey || undefined });
+      const list = await api.listProviders();
+      setProviders(list); setProviderId(saved.id); setApiKey('');
+      setProviderStatus('Provider saved. The API key is stored encrypted by the desktop app.');
+    } catch (error) { setProviderStatus(error instanceof Error ? error.message : 'Could not save provider'); }
+    finally { setProviderBusy(false); }
+  };
+  const testProvider = async (id: string) => {
+    if (!window.motionStudio) return;
+    setProviderBusy(true); setProviderStatus('Testing API connection…');
+    try { const result = await window.motionStudio.testProvider(id); setProviderStatus(result.message); }
+    catch (error) { setProviderStatus(error instanceof Error ? error.message : 'API connection failed'); }
+    finally { setProviderBusy(false); }
+  };
+  const deleteProvider = async (id: string) => {
+    if (!window.motionStudio || !window.confirm('Remove this provider configuration and its saved API key?')) return;
+    try {
+      await window.motionStudio.deleteProvider(id);
+      const list = await window.motionStudio.listProviders(); setProviders(list);
+      if (providerId === id) resetProviderForm();
+      if (providerId === id) setProviderId(list[0]?.id ?? '');
+      setProviderStatus('Provider removed.');
+    } catch (error) { setProviderStatus(error instanceof Error ? error.message : 'Could not remove provider'); }
+  };
+  const askProvider = async () => {
+    if (!window.motionStudio || !providerId || !editPrompt.trim()) { setProviderStatus('Choose a saved provider and describe the edit you want.'); return; }
+    setAsking(true); setEditAnswer(''); setProviderStatus('');
+    try {
+      const result = await window.motionStudio.askProvider({ id: providerId, prompt: editPrompt, projectContext });
+      setEditAnswer(result.text);
+    } catch (error) { setProviderStatus(error instanceof Error ? error.message : 'AI request failed'); }
+    finally { setAsking(false); }
   };
   return <div className="inspector-content agent-panel">
-    <div className="effect-intro"><div className="effect-spark"><Bot size={20}/></div><strong>Agent workspace</strong><span>Connect compatible AI agents through MCP to inspect and edit saved Motion Studio projects.</span></div>
-    <div className="agent-status"><span className="status-led"/><div><strong>MCP server available</strong><small>External client connection not detected by this panel.</small></div></div>
-    <div className="inspector-section"><div className="section-title"><span>QUICK CONNECT</span></div>
+    <div className="effect-intro"><div className="effect-spark"><Bot size={20}/></div><strong>AI & agent workspace</strong><span>Connect cloud APIs or compatible local endpoints, then ask an AI model for an edit plan based on your current composition.</span></div>
+    <div className="inspector-section provider-section"><div className="section-title"><span>API PROVIDERS</span><button className="footer-button" onClick={resetProviderForm}>+ Add new</button></div>
+      <div className="provider-list">{providers.length ? providers.map(provider => <div className={provider.id===providerId?'provider-card provider-selected':'provider-card'} key={provider.id}>
+        <button className="provider-select" onClick={() => setProviderId(provider.id)}><span className="provider-led"/><span className="provider-meta"><strong>{provider.name}</strong><small>{provider.kind} · {provider.model}</small></span>{provider.hasApiKey ? <span className="provider-key-status">KEY SAVED</span> : <span className="provider-key-status missing">NO KEY</span>}</button>
+        <div className="provider-actions"><button className="footer-button" disabled={providerBusy} onClick={() => editProvider(provider.id)}>Edit</button><button className="footer-button" disabled={providerBusy} onClick={() => void testProvider(provider.id)}>Test</button><button className="footer-button danger-text" disabled={providerBusy} onClick={() => void deleteProvider(provider.id)}>Remove</button></div>
+      </div>) : <div className="empty-inspector">No API providers configured yet.</div>}</div>
+      <label className="field-label">API type<select className="field-select" value={providerKind} onChange={e=>{const kind=e.target.value as ProviderKind;setProviderKind(kind);if(!providerId){setProviderName(defaults[kind].name);setBaseUrl(defaults[kind].url);setModel(defaults[kind].model);}}}><option value="openai-compatible">OpenAI-compatible API (OpenAI, OpenRouter, local gateways)</option><option value="anthropic">Anthropic Claude API</option><option value="gemini">Google Gemini API</option></select></label>
+      <label className="field-label">Connection name<input className="provider-input" value={providerName} onChange={e=>setProviderName(e.target.value)} placeholder="My AI provider"/></label>
+      <label className="field-label">Base URL<input className="provider-input" value={baseUrl} onChange={e=>setBaseUrl(e.target.value)} placeholder="https://api.example.com/v1"/></label>
+      <label className="field-label">Model ID<input className="provider-input" value={model} onChange={e=>setModel(e.target.value)} placeholder="Model identifier"/></label>
+      <label className="field-label">API key<input className="provider-input" type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder={providerId?'Leave blank to keep saved key':'Paste API key'} /></label>
+      <div className="provider-form-actions"><button className="primary-btn" disabled={providerBusy} onClick={() => void saveProvider()}>{providerBusy?'Working…':providerId?'Save provider':'Add provider'}</button>{providerId&&<button className="secondary-btn" disabled={providerBusy} onClick={resetProviderForm}>Cancel edit</button>}</div>
+      {providerStatus&&<div className="provider-status" role="status">{providerStatus}</div>}
+      <p className="note-text">Keys stay in the desktop main process and are encrypted with Electron safeStorage. Never paste keys into project files or prompts. API providers may charge for usage.</p>
+    </div>
+    <div className="inspector-section"><div className="section-title"><span>AI EDIT ASSISTANT</span></div>
+      <label className="field-label">What should change?</label>
+      <textarea className="text-edit provider-prompt" value={editPrompt} onChange={e=>setEditPrompt(e.target.value)} placeholder="Example: Make this a 20-second product trailer. Improve pacing, add a clear opening hook, suggest title animation and a music beat structure."/>
+      <button className="primary-btn full-width" disabled={asking||!providerId||!editPrompt.trim()} onClick={() => void askProvider()}><Sparkles size={14}/>{asking?'Thinking…':'Generate edit guidance'}</button>
+      {editAnswer&&<div className="provider-answer"><strong>Suggested edit plan</strong><p>{editAnswer}</p><span>Suggestions only — review and apply changes in the editor. This request does not automatically modify your timeline.</span></div>}
+    </div>
+    <div className="inspector-section"><div className="section-title"><span>MCP AGENT CONNECT</span></div>
       <ol className="agent-steps"><li>Save your composition as a project JSON file.</li><li>Install Node.js 20+ on this computer.</li><li>Copy the starter config and replace both example paths.</li><li>Add it to your MCP client's configuration, then restart that client.</li></ol>
-      <button className="primary-btn full-width" onClick={() => void copyConfig()}><Copy size={14}/>{copied ? 'Config copied' : 'Copy MCP config template'}</button>
+      <button className="secondary-btn full-width" onClick={() => void copyConfig()}><Copy size={14}/>{copied ? 'Config copied' : 'Copy MCP config template'}</button>
       <p className="note-text">This is a template, not an active connection. Use real absolute paths on your computer.</p>
     </div>
     <div className="inspector-section"><div className="section-title"><span>AGENT TOOLS</span></div>
       {['Inspect and validate project','Create text, shape, image, video and audio layers','Update transforms, visibility, timing and text','Add keyframe data','Change composition dimensions and FPS','Set blur, brightness, contrast and other layer effects','Control audio volume and mute settings','Duplicate and reorder layers','Delete layers only with explicit confirmation'].map(item => <div className="agent-tool-row" key={item}><span className="status-led"/><span>{item}</span></div>)}
     </div>
-    <div className="agent-warning"><strong>Current boundary</strong><span>Agents edit the saved project file. The desktop app watches for agent changes and offers safe reload/conflict handling. WebM export includes source audio; advanced GPU effects and live audio preview mixing are still in development.</span></div>
+    <div className="agent-warning"><strong>Current boundary</strong><span>AI models provide editing guidance and do not yet apply edits directly. Motion Studio currently exports WebM/PNG; professional multi-codec export, GPU compositing, masks and a complete Premiere-style editing pipeline remain future work.</span></div>
   </div>;
 }
