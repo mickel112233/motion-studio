@@ -420,6 +420,44 @@ export default function App() {
   const exportVideo = async () => {
     const canvas = document.querySelector<HTMLCanvasElement>('#composition-canvas');
     if (!canvas) return;
+    if (exportFormat === 'mp4' && ffmpegRuntime?.available && window.motionStudio?.beginFfmpegExport) {
+      const fps = Math.max(1, Math.min(60, Math.round(project.fps)));
+      if (project.duration > 120) { setStatus('Video export is limited to 120 seconds in this beta'); return; }
+      const frameCount = Math.max(1, Math.ceil(project.duration * fps));
+      exportCancelRef.current = false;
+      setExportingVideo(true); setExportProgress(0); setPlaying(false); setStatus('Preparing FFmpeg MP4 export…');
+      let sessionId: string | undefined;
+      try {
+        const started = await window.motionStudio.beginFfmpegExport({ width: canvas.width, height: canvas.height, fps });
+        if (started.canceled) { setStatus('MP4 export cancelled'); return; }
+        sessionId = started.id;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) throw new Error('Could not access the composition canvas pixels');
+        for (let frame = 0; frame < frameCount; frame++) {
+          if (exportCancelRef.current) {
+            await window.motionStudio.cancelFfmpegExport({ id: sessionId });
+            sessionId = undefined;
+            setStatus('MP4 export cancelled');
+            return;
+          }
+          await drawComposition(canvas, project, frame / fps);
+          const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+          await window.motionStudio.writeFfmpegFrame({ id: sessionId, frame: new Uint8Array(pixels.data) });
+          setExportProgress(Math.round(((frame + 1) / frameCount) * 100));
+        }
+        const result = await window.motionStudio.finishFfmpegExport({ id: sessionId });
+        sessionId = undefined;
+        setStatus(`MP4 exported: ${result.framesWritten} frames at ${fps} FPS. FFmpeg mode is currently video-only; use WebM export for audio mixing.`);
+      } catch (error) {
+        if (sessionId) await window.motionStudio.cancelFfmpegExport({ id: sessionId }).catch(() => {});
+        sessionId = undefined;
+        setStatus(error instanceof Error ? 'FFmpeg export failed: ' + error.message : 'FFmpeg export failed');
+      } finally {
+        if (sessionId) await window.motionStudio.cancelFfmpegExport({ id: sessionId }).catch(() => {});
+        setExportingVideo(false);
+      }
+      return;
+    }
     if (typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') {
       setStatus('Video export is not supported by this runtime'); return;
     }
@@ -538,7 +576,7 @@ export default function App() {
         <button className="secondary-btn" onClick={() => void open()}><FolderOpen size={15}/> Open</button>
         <button className="secondary-btn" onClick={() => void save()}><Save size={15}/> Save</button>
         <button className="secondary-btn" onClick={() => void saveAs()}><Save size={15}/> Save As</button>
-        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><span className="export-runtime-note" title={ffmpegRuntime?.version || ffmpegRuntime?.message || "Checking export runtime"}>{ffmpegRuntime === null ? "Checking encoder…" : ffmpegRuntime.available ? "FFmpeg detected · integration pending" : supportsWebmExport ? "Browser export · WebM" : "No video encoder"}</span><select className="export-format-select" aria-label="Video export format" value={exportFormat} disabled={exportingVideo} onChange={e=>setExportFormat(e.target.value as 'webm'|'mp4')}><option value="webm">WebM</option><option value="mp4" disabled={!supportsMp4Export}>MP4 {!supportsMp4Export?'(unsupported here)':''}</option></select><button className="primary-btn" onClick={() => { if (exportingVideo) exportCancelRef.current = true; else void exportVideo(); }}>{exportingVideo ? <><Film size={15}/> Cancel {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
+        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><span className="export-runtime-note" title={ffmpegRuntime?.version || ffmpegRuntime?.message || "Checking export runtime"}>{ffmpegRuntime === null ? "Checking encoder…" : ffmpegRuntime.available ? "FFmpeg detected · integration pending" : supportsWebmExport ? "Browser export · WebM" : "No video encoder"}</span><select className="export-format-select" aria-label="Video export format" value={exportFormat} disabled={exportingVideo} onChange={e=>setExportFormat(e.target.value as 'webm'|'mp4')}><option value="webm">WebM</option><option value="mp4" disabled={!supportsMp4Export && !ffmpegRuntime?.available}>MP4 {!supportsMp4Export && ffmpegRuntime?.available ? '(FFmpeg video-only)' : !supportsMp4Export ? '(unsupported here)' : ''}</option></select><button className="primary-btn" onClick={() => { if (exportingVideo) exportCancelRef.current = true; else void exportVideo(); }}>{exportingVideo ? <><Film size={15}/> Cancel {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
       </div>
     </header>
     {externalConflict && <div className="external-conflict-banner"><span><strong>External project conflict.</strong> An agent updated the saved file while you had local edits. Saving is paused to avoid overwriting the agent's work.</span><button className="secondary-btn" onClick={() => void open()}>Open / reload</button><button className="primary-btn" onClick={() => void saveAs()}>Save local copy as…</button></div>}
