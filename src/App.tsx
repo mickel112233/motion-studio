@@ -79,6 +79,20 @@ export default function App() {
   const [exportProgress, setExportProgress] = useState(0);
   const [exportFormat, setExportFormat] = useState<'webm' | 'mp4'>('webm');
   const supportsMp4Export = typeof MediaRecorder !== 'undefined' && ['video/mp4;codecs=avc1.42E01E','video/mp4'].some(type => MediaRecorder.isTypeSupported(type));
+  const [ffmpegRuntime, setFfmpegRuntime] = useState<{ available: boolean; executable: string | null; version: string | null; message?: string } | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (window.motionStudio?.getExportCapabilities) {
+      void window.motionStudio.getExportCapabilities().then(capabilities => {
+        if (active) setFfmpegRuntime(capabilities.ffmpeg);
+      }).catch(() => {
+        if (active) setFfmpegRuntime({ available: false, executable: null, version: null, message: 'Export runtime detection failed' });
+      });
+    } else {
+      setFfmpegRuntime({ available: false, executable: null, version: null, message: 'Browser-only mode' });
+    }
+    return () => { active = false; };
+  }, []);
   const [externalConflict, setExternalConflict] = useState(false);
   const externalConflictRef = useRef(externalConflict);
   externalConflictRef.current = externalConflict;
@@ -523,7 +537,7 @@ export default function App() {
         <button className="secondary-btn" onClick={() => void open()}><FolderOpen size={15}/> Open</button>
         <button className="secondary-btn" onClick={() => void save()}><Save size={15}/> Save</button>
         <button className="secondary-btn" onClick={() => void saveAs()}><Save size={15}/> Save As</button>
-        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><select className="export-format-select" aria-label="Video export format" value={exportFormat} disabled={exportingVideo} onChange={e=>setExportFormat(e.target.value as 'webm'|'mp4')}><option value="webm">WebM</option><option value="mp4" disabled={!supportsMp4Export}>MP4 {!supportsMp4Export?'(unsupported here)':''}</option></select><button className="primary-btn" onClick={() => { if (exportingVideo) exportCancelRef.current = true; else void exportVideo(); }}>{exportingVideo ? <><Film size={15}/> Cancel {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
+        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><span className="export-runtime-note" title={ffmpegRuntime?.version || ffmpegRuntime?.message || "Checking export runtime"}>{ffmpegRuntime === null ? "Checking encoder…" : ffmpegRuntime.available ? "FFmpeg detected · integration pending" : "Browser encoder"}</span><select className="export-format-select" aria-label="Video export format" value={exportFormat} disabled={exportingVideo} onChange={e=>setExportFormat(e.target.value as 'webm'|'mp4')}><option value="webm">WebM</option><option value="mp4" disabled={!supportsMp4Export}>MP4 {!supportsMp4Export?'(unsupported here)':''}</option></select><button className="primary-btn" onClick={() => { if (exportingVideo) exportCancelRef.current = true; else void exportVideo(); }}>{exportingVideo ? <><Film size={15}/> Cancel {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
       </div>
     </header>
     {externalConflict && <div className="external-conflict-banner"><span><strong>External project conflict.</strong> An agent updated the saved file while you had local edits. Saving is paused to avoid overwriting the agent's work.</span><button className="secondary-btn" onClick={() => void open()}>Open / reload</button><button className="primary-btn" onClick={() => void saveAs()}>Save local copy as…</button></div>}
