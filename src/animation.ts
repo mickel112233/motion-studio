@@ -60,11 +60,11 @@ export function evaluateTransform<T extends AnimatableLayer>(layer: T, time: num
   if (!frames.length) return base;
   if (frames.length === 1) {
     const frame = frames[0];
-    // A lone initial keyframe should not erase a non-default layer transform.
-    if (frame.time === layer.start && time < frame.time) return base;
+    if (time < frame.time) return base;
     return { x: frame.x, y: frame.y, scale: frame.scale, rotation: frame.rotation, opacity: frame.opacity };
   }
-  if (time <= frames[0].time) {
+  if (time < frames[0].time) return base;
+  if (time === frames[0].time) {
     const first = frames[0];
     return { x:first.x, y:first.y, scale:first.scale, rotation:first.rotation, opacity:first.opacity };
   }
