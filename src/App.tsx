@@ -460,7 +460,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       const outputFormat = blob.type.includes('mp4') ? 'mp4' : 'webm';
-      a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}. ${outputFormat}`.replace('. ', '.');
+      a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-') }.${outputFormat}`;
       a.href = url; a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 5000);
       setStatus(`Video exported as ${outputFormat.toUpperCase()} (${fps} FPS${audioSession ? ', audio mixed' : ''})`);
