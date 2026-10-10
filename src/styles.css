@@ -56,3 +56,29 @@
 .ruler{cursor:ew-resize;touch-action:none;user-select:none}
 
 .comp-audio{display:none}
+
+
+.provider-section{padding-bottom:12px}
+.provider-list{display:flex;flex-direction:column;gap:7px;margin-bottom:13px}
+.provider-card{border:1px solid #30313d;border-radius:8px;background:#191a22;overflow:hidden}
+.provider-card.provider-selected{border-color:#8f74d0;box-shadow:inset 0 0 0 1px #8f74d033}
+.provider-select{display:flex;align-items:center;gap:8px;width:100%;padding:9px;border:0;background:transparent;text-align:left;min-width:0}
+.provider-led{width:7px;height:7px;flex:none;border-radius:50%;background:#8d80b4}
+.provider-meta{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.provider-meta strong{font-size:10px;font-weight:600;color:#e2e1ed;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.provider-meta small{font-size:9px;color:#8f91a2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.provider-key-status{font:8px 'DM Mono',monospace;color:#78d9ae;letter-spacing:.3px}
+.provider-key-status.missing{color:#e7b878}
+.provider-actions{display:flex;justify-content:flex-end;gap:11px;padding:5px 9px;border-top:1px solid #2a2b34;background:#17181f}
+.provider-input{display:block;width:100%;min-width:0;margin-top:6px;padding:9px 10px;border:1px solid #353642;border-radius:6px;background:#14151b;color:#e7e6f1;font-size:10px;outline:none}
+.provider-input:focus{border-color:#9b82ed}
+.provider-form-actions{display:flex;gap:7px;margin-top:12px}
+.provider-form-actions .primary-btn,.provider-form-actions .secondary-btn{flex:1}
+.provider-status{margin-top:10px;padding:9px;border:1px solid #40364f;border-radius:7px;background:#211d2a;color:#d3c4f7;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.danger-text{color:#f39c9c}
+.provider-prompt{width:100%;min-height:100px;resize:vertical;line-height:1.5}
+.provider-answer{margin-top:10px;padding:11px;border:1px solid #393343;border-radius:8px;background:#1a1820}
+.provider-answer strong{font-size:11px;color:#d6c8ff}
+.provider-answer p{margin:8px 0;white-space:pre-wrap;overflow-wrap:anywhere;color:#d1d0dc;font-size:10px;line-height:1.6}
+.provider-answer span{display:block;color:#9c9cac;font-size:9px;line-height:1.5}
+.provider-form-actions button:disabled,.provider-actions button:disabled{opacity:.5;cursor:wait}
