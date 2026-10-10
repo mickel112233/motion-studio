@@ -70,6 +70,7 @@ export default function App() {
   const [externalConflict, setExternalConflict] = useState(false);
   const externalConflictRef = useRef(externalConflict);
   externalConflictRef.current = externalConflict;
+  const conflictRevisionRef = useRef(0);
   const [isDirty, setIsDirty] = useState(false);
   const [panel, setPanel] = useState<'project' | 'effects' | 'audio' | 'agents'>('project');
   const [tool, setTool] = useState<'select' | 'move' | 'text' | 'shape'>('select');
@@ -213,6 +214,7 @@ export default function App() {
       autosavePromiseRef.current = task;
       void task.then(result => {
         if (result.conflict) {
+          conflictRevisionRef.current += 1;
           if (result.data && isValidProject(result.data) && window.confirm('The saved project changed outside Motion Studio. Reload the external version and discard your unsaved edits? Choose Cancel to keep your local version and use Save As.')) {
             setProject(result.data); setSelected(result.data.layers[0]?.id ?? ''); setCurrentTime(0); setHistory([]); setFuture([]); setExternalConflict(false); externalConflictRef.current = false; setIsDirty(false); setStatus('Synced external agent changes');
           } else {
@@ -237,6 +239,7 @@ export default function App() {
     return window.motionStudio.onProjectExternalChange(payload => {
       if (payload.error) { setStatus(payload.error); return; }
       if (!payload.data || !isValidProject(payload.data)) { setStatus('An external project edit could not be validated'); return; }
+      if (isDirty || externalConflict) conflictRevisionRef.current += 1;
       if ((isDirty || externalConflict) && !window.confirm('An external agent changed this project on disk. Reload and discard your unsaved editor changes? Choose Cancel to keep your local edits and resolve the conflict manually.')) {
         setExternalConflict(true); externalConflictRef.current = true;
         setStatus('External edits detected — resolve conflict before saving');
@@ -265,7 +268,9 @@ export default function App() {
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
   });
   const save = async () => {
+    const conflictRevision = conflictRevisionRef.current;
     if (autosavePromiseRef.current) await autosavePromiseRef.current.catch(() => undefined);
+    if (conflictRevisionRef.current !== conflictRevision) return;
     if (externalConflictRef.current) { setStatus('External changes conflict — use Open to reload or Save As to preserve your local version'); return; }
     const data = { ...latestProjectRef.current, savedAt: new Date().toISOString(), schemaVersion: 1 };
     if (window.motionStudio) {
