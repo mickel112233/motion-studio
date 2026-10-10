@@ -40,10 +40,10 @@ test('MCP server initializes and safely edits a configured project', async () =>
     const layerId = created.result.structuredContent.result.id;
     const keyed = await request(5, 'tools/call', { name: 'layers.add_keyframe', arguments: { id: layerId, time: 4, x: 120, easing: 'ease-in' } });
     assert.equal(keyed.result.isError, false);
-    assert.equal(keyed.result.structuredContent.result.result.easing, 'ease-in');
+    assert.equal(keyed.result.structuredContent.result.easing, 'ease-in');
     const effects = await request(9, 'tools/call', { name: 'layers.set_effects', arguments: { id: layerId, effects: [{ type: 'blur', value: 6 }, { type: 'brightness', value: 115 }] } });
     assert.equal(effects.result.isError, false);
-    assert.equal(effects.result.structuredContent.result.result.length, 2);
+    assert.equal(effects.result.structuredContent.result.length, 2);
     const lock = await request(10, 'tools/call', { name: 'layers.update', arguments: { id: layerId, patch: { locked: true } } });
     assert.equal(lock.result.isError, false);
     const blocked = await request(11, 'tools/call', { name: 'layers.update', arguments: { id: layerId, patch: { text: 'must not apply' } } });
@@ -52,12 +52,12 @@ test('MCP server initializes and safely edits a configured project', async () =>
     assert.equal(unlock.result.isError, false);
     const duplicated = await request(6, 'tools/call', { name: 'layers.duplicate', arguments: { id: layerId, offsetX: 30 } });
     assert.equal(duplicated.result.isError, false);
-    const duplicateId = duplicated.result.structuredContent.result.result.id;
+    const duplicateId = duplicated.result.structuredContent.result.id;
     assert.notEqual(duplicateId, layerId);
     const reordered = await request(7, 'tools/call', { name: 'layers.reorder', arguments: { id: duplicateId, index: 0 } });
-    assert.equal(reordered.result.structuredContent.result.result.index, 0);
+    assert.equal(reordered.result.structuredContent.result.index, 0);
     const deleted = await request(8, 'tools/call', { name: 'layers.delete', arguments: { id: duplicateId, confirm: true } });
-    assert.equal(deleted.result.structuredContent.result.result.deleted, true);
+    assert.equal(deleted.result.structuredContent.result.deleted, true);
     const saved = JSON.parse(await fs.readFile(projectPath, 'utf8'));
     assert.equal(saved.layers.length, 1);
     assert.equal(saved.layers[0].text, 'Hello from MCP');
