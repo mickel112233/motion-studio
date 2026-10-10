@@ -10,9 +10,9 @@
 - Import local image, video and audio files into the project layer list.
 - Save/open JSON project files from the desktop shell; download JSON in browser mode.
 - Export the current preview frame as PNG.
-- Undo/redo, visibility and locking controls, and basic keyframe marker storage.
+- Undo/redo, visibility and locking controls, animated transform keyframes with linear/ease-in/ease-out/ease-in-out/hold interpolation, and editable outgoing easing.
 - Windows NSIS packaging configuration.
-- **MCP server for external agents** to inspect/validate projects, create and update layers, change composition settings, and store keyframes.
+- **MCP server for external agents** to inspect/validate projects, create/update/duplicate/reorder/delete layers, change composition settings, and edit keyframes including easing.
 
 ## Run on Windows
 
@@ -30,6 +30,7 @@ npm run typecheck
 npm run build
 npm run mcp:check
 npm run test:mcp
+npm run test:unit
 ```
 
 Create a Windows installer:
@@ -63,7 +64,7 @@ Replace both example paths with real absolute paths. See docs/AGENTS-MCP.md for 
 
 ## Important scope notes
 
-This repository is an evolving foundation, **not a complete After Effects replacement yet**. Full per-frame keyframe interpolation, a GPU compositing/effects graph, audio waveform playback/mixing, and final video rendering/export are not implemented. The Effects panel is a UI preview. PNG export captures the current preview surface; it is not a video export pipeline.
+This repository is an evolving foundation, **not a complete After Effects replacement yet**. The editor now evaluates transform keyframes with interpolation and easing. A GPU compositing/effects graph, audio waveform playback/mixing, and final video rendering/export are not implemented. The Effects panel is a UI preview. PNG export captures the current preview surface; it is not a video export pipeline.
 
 The MCP server edits a configured saved project file. It does not sync unsaved editor state or live-refresh the open editor, and it is designed for one writer at a time. Agent-generated edits should be reviewed and validated before delivery.
 
