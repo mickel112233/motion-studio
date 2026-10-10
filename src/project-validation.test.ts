@@ -36,6 +36,16 @@ describe('project file validation', () => {
     expect(isValidProject(q)).toBe(false);
   });
 
+  it('validates per-layer audio settings', () => {
+    const p = validProject();
+    (p.layers[0] as unknown as { volume: number; muted: boolean }).volume = 65;
+    (p.layers[0] as unknown as { volume: number; muted: boolean }).muted = true;
+    expect(isValidProject(p)).toBe(true);
+    const q = validProject();
+    (q.layers[0] as unknown as { volume: number }).volume = 101;
+    expect(isValidProject(q)).toBe(false);
+  });
+
   it('rejects malformed keyframe times', () => {
     const p = validProject(); p.layers[0].keyframes[0].time = 11;
     expect(isValidProject(p)).toBe(false);
