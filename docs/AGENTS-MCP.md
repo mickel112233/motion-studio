@@ -57,3 +57,8 @@ For multi-agent workflows, assign explicit roles: a director/planner creates the
 The server reads and writes only the one configured project JSON file. Tool arguments cannot choose arbitrary filesystem paths, run shell commands or access the network. Changes are written atomically, and projects larger than 20 MB are rejected. Nevertheless, connected agents can alter your configured project, so only connect trusted MCP clients and keep backups.
 
 MCP edits the saved project file. The desktop app watches the active project for external file changes and can reload agent edits; if the editor has unsaved changes, it asks before discarding them and blocks overwriting until the conflict is resolved. Animation keyframes interpolate in the preview, and the editor can export animated WebM video from the canvas renderer. This is an early renderer: advanced GPU effects, waveform display, advanced audio routing and production-grade color management are not implemented; WebM export can mix source audio and is limited to 120 seconds in this beta. MCP is a project-editing bridge, not an autonomous rendering agent.
+
+
+## Visual editing fields added in 0.7.0
+
+The MCP `layers.update` tool accepts validated `transitionIn` and `transitionOut` objects (`type`: `none`, `fade`, `wipe-left`, `wipe-right`, or `zoom`; `duration` in seconds), geometric `mask` objects (`type`: `none`, `rectangle`, or `ellipse`; `inset` from 0 to 45), and a `colorGrade` object with `exposure` (-4 to 4), `contrast` and `saturation` (0 to 200), `temperature` and `tint` (-100 to 100). The renderer and project validator enforce these bounds. Temperature/tint are CSS-filter approximations rather than color-managed grading.

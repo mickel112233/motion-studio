@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { evaluateTransform, isLayerActive, type Easing } from './animation';
+import { evaluateTransform, isLayerActive, evaluateClipPresentation, type Easing, type ClipTransition } from './animation';
 import { cssEffectFilter, drawComposition } from './compositor';
 import { createAudioExportSession, type AudioExportSession } from './audio-export';
-import { isValidProject } from './project-validation';
+import { isValidProject, type ValidatedProject } from './project-validation';
+import { applyAiEditPlan, parseAiEditPlan, type AiEditPlan } from './ai-edit-plan';
 import {
   Activity, AlignCenter, Aperture, AudioLines, Bot, Box, ChevronDown, ChevronRight,
   CircleHelp, Clapperboard, Clock3, Command, Copy, Download, Eye, EyeOff,
@@ -17,10 +18,14 @@ type ProviderKind = 'openai-compatible' | 'anthropic' | 'gemini';
 type ApiProvider = { id: string; name: string; kind: ProviderKind; baseUrl: string; model: string; hasApiKey: boolean; updatedAt: string };
 type EffectType = 'blur' | 'brightness' | 'contrast' | 'saturate' | 'grayscale' | 'sepia' | 'hue-rotate' | 'drop-shadow';
 type LayerEffect = { id: string; type: EffectType; enabled: boolean; value: number };
+type LayerMask = { type: 'none' | 'rectangle' | 'ellipse'; inset: number };
+type LayerColorGrade = { exposure: number; contrast: number; saturation: number; temperature: number; tint: number };
 type Layer = {
   id: string; name: string; kind: LayerKind; color: string; visible: boolean;
   locked: boolean; start: number; duration: number; x: number; y: number;
-  scale: number; rotation: number; opacity: number; text?: string; assetUrl?: string; effects?: LayerEffect[]; volume?: number; muted?: boolean;
+  scale: number; rotation: number; opacity: number; text?: string; assetUrl?: string; effects?: LayerEffect[]; volume?: number; muted?: boolean; audioFadeIn?: number; audioFadeOut?: number;
+  transitionIn?: { type: ClipTransition; duration: number }; transitionOut?: { type: ClipTransition; duration: number };
+  mask?: LayerMask; colorGrade?: LayerColorGrade;
   keyframes: { time: number; x: number; y: number; scale: number; rotation: number; opacity: number; easing?: Easing }[];
 };
 type Project = { name: string; width: number; height: number; fps: number; duration: number; layers: Layer[] };
@@ -40,7 +45,9 @@ const effectDefaults: Record<EffectType, { min: number; max: number; initial: nu
 const initialLayer = (kind: LayerKind, name: string, index: number): Layer => ({
   id: uid(), name, kind, color: colors[index % colors.length], visible: true, locked: false,
   start: 0, duration: 8, x: 0, y: 0, scale: 1, rotation: 0, opacity: 100,
-  text: kind === 'text' ? 'Your next big idea.' : undefined, effects: [], volume: 100, muted: false,
+  text: kind === 'text' ? 'Your next big idea.' : undefined, effects: [], volume: 100, muted: false, audioFadeIn: 0, audioFadeOut: 0,
+  transitionIn: { type: 'none', duration: .5 }, transitionOut: { type: 'none', duration: .5 },
+  mask: { type: 'none', inset: 0 }, colorGrade: { exposure: 0, contrast: 100, saturation: 100, temperature: 0, tint: 0 },
   keyframes: [{ time: 0, x: 0, y: 0, scale: 1, rotation: 0, opacity: 100 }]
 });
 const upsertKeyframe = (layer: Layer, time: number, transformPatch: Partial<Pick<Layer, 'x' | 'y' | 'scale' | 'rotation' | 'opacity'>> = {}, easing?: Easing) => {
@@ -70,6 +77,8 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const [exportingVideo, setExportingVideo] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [exportFormat, setExportFormat] = useState<'webm' | 'mp4'>('webm');
+  const supportsMp4Export = typeof MediaRecorder !== 'undefined' && ['video/mp4;codecs=avc1.42E01E','video/mp4'].some(type => MediaRecorder.isTypeSupported(type));
   const [externalConflict, setExternalConflict] = useState(false);
   const externalConflictRef = useRef(externalConflict);
   externalConflictRef.current = externalConflict;
@@ -111,6 +120,16 @@ export default function App() {
     userProjectActionRef.current = true;
     setHistory(h => [...h.slice(-39), project]); setFuture([]);
     setProject(updater(project)); setIsDirty(true); setStatus('Unsaved changes');
+  };
+  const applyAiPlan = (plan: AiEditPlan) => {
+    const result = applyAiEditPlan(project as unknown as ValidatedProject, plan);
+    if (!result.ok) { setStatus('AI plan not applied: ' + result.errors.join(' ')); return { ok: false, message: result.errors.join(' ') }; }
+    userProjectActionRef.current = true;
+    setHistory(h => [...h.slice(-39), project]); setFuture([]);
+    setProject(result.project as Project);
+    if (!result.project.layers.some(layer => layer.id === selected)) setSelected(result.project.layers[0]?.id ?? '');
+    setIsDirty(true); setStatus(`Applied ${result.applied} AI edit operation(s) — undo is available`);
+    return { ok: true, message: `Applied ${result.applied} operation(s). Use Undo to revert the entire AI edit plan.` };
   };
   const updateScrubTime = (event: ReactPointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -406,8 +425,10 @@ export default function App() {
       let recordingStream: MediaStream = canvasStream;
       audioSession = await createAudioExportSession(project.layers);
       if (audioSession) { recordingStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioSession.stream.getAudioTracks()]); stream = recordingStream; }
-      const mimeType = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(type => MediaRecorder.isTypeSupported(type));
-      recorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : undefined);
+      const mimeCandidates = exportFormat === 'mp4' ? ['video/mp4;codecs=avc1.42E01E','video/mp4'] : ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+      const mimeType = mimeCandidates.find(type => MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw new Error(exportFormat === 'mp4' ? 'MP4 encoding is not supported by this runtime. Choose WebM or use an FFmpeg-enabled build.' : 'WebM encoding is not supported by this runtime.');
+      recorder = new MediaRecorder(recordingStream, { mimeType });
       const recorded = new Promise<Blob>((resolve, reject) => {
         const chunks: BlobPart[] = [];
         recorder!.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data); };
@@ -438,10 +459,11 @@ export default function App() {
       if (!blob.size) throw new Error('The encoder produced an empty video');
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.webm`;
+      const outputFormat = blob.type.includes('mp4') ? 'mp4' : 'webm';
+      a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-') }.${outputFormat}`;
       a.href = url; a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 5000);
-      setStatus(`Video exported as WebM (${fps} FPS${audioSession ? ', audio mixed' : ''})`);
+      setStatus(`Video exported as ${outputFormat.toUpperCase()} (${fps} FPS${audioSession ? ', audio mixed' : ''})`);
     } catch (error) {
       if (recorder && recorder.state !== 'inactive') recorder.stop();
       setStatus(error instanceof Error ? 'Video export failed: ' + error.message : 'Video export failed');
@@ -501,7 +523,7 @@ export default function App() {
         <button className="secondary-btn" onClick={() => void open()}><FolderOpen size={15}/> Open</button>
         <button className="secondary-btn" onClick={() => void save()}><Save size={15}/> Save</button>
         <button className="secondary-btn" onClick={() => void saveAs()}><Save size={15}/> Save As</button>
-        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><button className="primary-btn" onClick={() => { if (exportingVideo) exportCancelRef.current = true; else void exportVideo(); }}>{exportingVideo ? <><Film size={15}/> Cancel {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
+        <button className="secondary-btn" onClick={() => void exportFrame()} disabled={exportingVideo}><Download size={15}/> Export PNG</button><select className="export-format-select" aria-label="Video export format" value={exportFormat} disabled={exportingVideo} onChange={e=>setExportFormat(e.target.value as 'webm'|'mp4')}><option value="webm">WebM</option><option value="mp4" disabled={!supportsMp4Export}>MP4 {!supportsMp4Export?'(unsupported here)':''}</option></select><button className="primary-btn" onClick={() => { if (exportingVideo) exportCancelRef.current = true; else void exportVideo(); }}>{exportingVideo ? <><Film size={15}/> Cancel {exportProgress}%</> : <><Film size={15}/> Export video</>}</button>
       </div>
     </header>
     {externalConflict && <div className="external-conflict-banner"><span><strong>External project conflict.</strong> An agent updated the saved file while you had local edits. Saving is paused to avoid overwriting the agent's work.</span><button className="secondary-btn" onClick={() => void open()}>Open / reload</button><button className="primary-btn" onClick={() => void saveAs()}>Save local copy as…</button></div>}
@@ -528,12 +550,14 @@ export default function App() {
                   const x = project.width / 2 + layer.x;
                   const y = project.height / 2 + layer.y;
                   const isSelected = selected === layer.id;
-                  if (layer.kind === 'text') return <div key={layer.id} className={isSelected ? 'comp-text selected-comp' : 'comp-text'} style={{ left: x, top: y, transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100, filter: cssEffectFilter(layer.effects, layer.color), color: '#f4f2ff' }} onClick={() => setSelected(layer.id)}>{layer.text ?? layer.name}{isSelected && <span className="selection-box"/>}</div>;
-                  if (layer.kind === 'image' && layer.assetUrl) return <img key={layer.id} className={isSelected ? 'comp-image selected-comp' : 'comp-image'} src={layer.assetUrl} style={{ left: x, top: y, transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100, filter: cssEffectFilter(layer.effects, layer.color) }} onClick={() => setSelected(layer.id)} />;
-                  if (layer.kind === 'video' && layer.assetUrl) return <video key={layer.id} className="comp-image comp-video" data-layer-start={layer.start} data-layer-volume={layer.volume??100} data-layer-muted={layer.muted??false} src={layer.assetUrl} muted={layer.muted??false} autoPlay={playing} loop onLoadedMetadata={e=>{const video=e.currentTarget;const target=Math.max(0,currentTime-layer.start);if(Number.isFinite(video.duration)&&video.duration>0)video.currentTime=Math.min(target,video.duration-0.001);if(playing)void video.play().catch(()=>{});else video.pause();}} style={{ left: x, top: y, transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100, filter: cssEffectFilter(layer.effects, layer.color), maxWidth: '60%' }} onClick={() => setSelected(layer.id)} />;
+                  const presentation = evaluateClipPresentation(layer, currentTime);
+                  const clipPath = layer.mask?.type === 'ellipse' ? `ellipse(${50 - (layer.mask.inset ?? 0) / 2}% ${50 - (layer.mask.inset ?? 0) / 2}% at 50% 50%)` : layer.mask?.type === 'rectangle' ? `inset(${layer.mask.inset ?? 0}%)` : undefined;
+                  if (layer.kind === 'text') return <div key={layer.id} className={isSelected ? 'comp-text selected-comp' : 'comp-text'} style={{ left: x, top: y, transform: `translate(-50%, -50%) scale(${layer.scale * presentation.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100 * presentation.opacity, clipPath: clipPath ?? presentation.clipPath, filter: cssEffectFilter(layer.effects, layer.color, layer.colorGrade), color: '#f4f2ff' }} onClick={() => setSelected(layer.id)}>{layer.text ?? layer.name}{isSelected && <span className="selection-box"/>}</div>;
+                  if (layer.kind === 'image' && layer.assetUrl) return <img key={layer.id} className={isSelected ? 'comp-image selected-comp' : 'comp-image'} src={layer.assetUrl} style={{ left: x, top: y, transform: `translate(-50%, -50%) scale(${layer.scale * presentation.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100 * presentation.opacity, clipPath: clipPath ?? presentation.clipPath, filter: cssEffectFilter(layer.effects, layer.color, layer.colorGrade) }} onClick={() => setSelected(layer.id)} />;
+                  if (layer.kind === 'video' && layer.assetUrl) return <video key={layer.id} className="comp-image comp-video" data-layer-start={layer.start} data-layer-volume={layer.volume??100} data-layer-muted={layer.muted??false} src={layer.assetUrl} muted={layer.muted??false} autoPlay={playing} loop onLoadedMetadata={e=>{const video=e.currentTarget;const target=Math.max(0,currentTime-layer.start);if(Number.isFinite(video.duration)&&video.duration>0)video.currentTime=Math.min(target,video.duration-0.001);if(playing)void video.play().catch(()=>{});else video.pause();}} style={{ left: x, top: y, transform: `translate(-50%, -50%) scale(${layer.scale * presentation.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100 * presentation.opacity, clipPath: clipPath ?? presentation.clipPath, filter: cssEffectFilter(layer.effects, layer.color, layer.colorGrade), maxWidth: '60%' }} onClick={() => setSelected(layer.id)} />;
                   if (layer.kind === 'audio' && layer.assetUrl) return <audio key={layer.id} className="comp-audio" data-layer-start={layer.start} data-layer-volume={layer.volume??100} data-layer-muted={layer.muted??false} src={layer.assetUrl} preload="auto" onLoadedMetadata={e=>{const audio=e.currentTarget;const target=Math.max(0,currentTime-layer.start);if(Number.isFinite(audio.duration)&&audio.duration>0)audio.currentTime=Math.min(target,audio.duration-0.001);if(playing)void audio.play().catch(()=>{});else audio.pause();}} />;
                   if (layer.kind === 'audio') return null;
-                  if (layer.kind === 'shape') return <div key={layer.id} className={isSelected ? 'comp-shape selected-comp' : 'comp-shape'} style={{ left: x, top: y, background: layer.color, transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100, filter: cssEffectFilter(layer.effects, layer.color) }} onClick={() => setSelected(layer.id)}>{isSelected && <span className="selection-box"/>}</div>;
+                  if (layer.kind === 'shape') return <div key={layer.id} className={isSelected ? 'comp-shape selected-comp' : 'comp-shape'} style={{ left: x, top: y, background: layer.color, transform: `translate(-50%, -50%) scale(${layer.scale * presentation.scale}) rotate(${layer.rotation}deg)`, opacity: layer.opacity / 100 * presentation.opacity, clipPath: clipPath ?? presentation.clipPath, filter: cssEffectFilter(layer.effects, layer.color, layer.colorGrade) }} onClick={() => setSelected(layer.id)}>{isSelected && <span className="selection-box"/>}</div>;
                   return null;
                 })}
               </div>
@@ -567,10 +591,21 @@ export default function App() {
           <div className="inspector-section"><div className="section-title"><span>TIMING</span><ChevronDown size={14}/></div>{selectedLayer && <><div className="property-row"><label>Start</label><NumberField value={selectedLayer.start} suffix="s" onChange={v=>updateLayer(selectedLayer.id,{start:Math.max(0,v)})}/></div><div className="property-row"><label>Duration</label><NumberField value={selectedLayer.duration} suffix="s" onChange={v=>updateLayer(selectedLayer.id,{duration:Math.max(.1,v)})}/></div></>}</div>
           <div className="inspector-section"><div className="section-title"><span>COMPOSITION</span><button className="icon-btn tiny" title="Composition settings"><Settings2 size={13}/></button></div><div className="property-row"><label>Width</label><NumberField value={project.width} onChange={v=>updateProject(p=>({...p,width:Math.max(16,Math.min(16384,Math.round(v)))}))}/></div><div className="property-row"><label>Height</label><NumberField value={project.height} onChange={v=>updateProject(p=>({...p,height:Math.max(16,Math.min(16384,Math.round(v)))}))}/></div><div className="property-row"><label>Frame rate</label><select className="field-select" value={project.fps} onChange={e=>updateProject(p=>({...p,fps:Number(e.target.value)}))}><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></select></div><div className="property-row"><label>Duration</label><NumberField value={project.duration} suffix="s" onChange={v=>updateProject(p=>({...p,duration:Math.max(1,Math.min(86400,v))}))}/></div></div>
           <button className="ai-card" onClick={() => setPanel('effects')}><div className="ai-icon"><WandSparkles size={16}/></div><div><strong>Make it move</strong><span>Explore effects and animation tools</span></div><ChevronRight size={16}/></button>
-        </div> : panel==='effects' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><Sparkles size={20}/></div><strong>Live effects stack</strong><span>These filters affect the selected layer in the preview and canvas exports.</span></div>{selectedLayer ? <><label className="field-label">Add effect<select className="field-select" value="" onChange={e=>{const type=e.target.value as EffectType;if(!type)return;const effect={id:uid(),type,enabled:true,value:effectDefaults[type].initial};updateLayer(selectedLayer.id,{effects:[...(selectedLayer.effects??[]),effect]});}}><option value="">Choose a filter…</option><option value="blur">Gaussian blur</option><option value="brightness">Brightness</option><option value="contrast">Contrast</option><option value="saturate">Saturation</option><option value="grayscale">Grayscale</option><option value="sepia">Sepia</option><option value="hue-rotate">Hue rotation</option><option value="drop-shadow">Drop shadow</option></select></label><div className="effect-stack">{(selectedLayer.effects??[]).length ? (selectedLayer.effects??[]).map(effect=>{const meta=effectDefaults[effect.type];return <div className="effect-control" key={effect.id}><div className="effect-control-head"><label><input type="checkbox" checked={effect.enabled} onChange={e=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).map(item=>item.id===effect.id?{...item,enabled:e.target.checked}:item)})}/><strong>{meta.label}</strong></label><button className="footer-button" onClick={()=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).filter(item=>item.id!==effect.id)})}>Remove</button></div><div className="effect-control-value"><input aria-label={meta.label+' amount'} type="range" min={meta.min} max={meta.max} step={1} value={effect.value} onChange={e=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).map(item=>item.id===effect.id?{...item,value:Number(e.target.value)}:item)})}/><span>{effect.value}{meta.unit}</span></div></div>}) : <div className="empty-inspector">No effects on this layer. Add a filter above.</div>}</div></> : <div className="empty-inspector">Select a layer to edit its effects.</div>}<p className="note-text">Filters are real CSS/canvas effects. Advanced GPU effects, masks, keying and procedural compositing are not implemented yet.</p></div> : panel==='audio' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><AudioLines size={20}/></div><strong>Audio workspace</strong><span>Control source audio from audio and video layers. Volume and mute settings are applied to WebM exports; waveform display and advanced audio routing are still planned.</span></div><button className="secondary-btn full-width" onClick={() => void importMedia()}><Upload size={15}/> Import audio or media</button><div className="inspector-section"><div className="section-title"><span>PROJECT AUDIO</span></div>{project.layers.filter(l=>l.kind==='audio'||l.kind==='video').length ? project.layers.filter(l=>l.kind==='audio'||l.kind==='video').map(l=><div className="audio-item" key={l.id}><div className="audio-item-title"><AudioLines size={15}/><span>{l.name}</span></div><div className="audio-controls"><label><input type="checkbox" checked={l.muted??false} onChange={e=>updateLayer(l.id,{muted:e.target.checked})}/> Mute</label><input aria-label={`Volume for ${l.name}`} type="range" min="0" max="100" value={l.volume??100} onChange={e=>updateLayer(l.id,{volume:Number(e.target.value)})}/><span>{l.volume??100}%</span></div></div>) : <div className="empty-inspector">No audio clips yet.</div>}</div></div> : <AgentPanel projectContext={JSON.stringify({ name: project.name, width: project.width, height: project.height, fps: project.fps, duration: project.duration, layers: project.layers.map(({id,name,kind,start,duration,visible,locked}) => ({id,name,kind,start,duration,visible,locked})) })} />}
+        </div> : panel==='effects' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><Sparkles size={20}/></div><strong>Live effects stack</strong><span>These filters affect the selected layer in the preview and canvas exports.</span></div>{selectedLayer ? <><label className="field-label">Add effect<select className="field-select" value="" onChange={e=>{const type=e.target.value as EffectType;if(!type)return;const effect={id:uid(),type,enabled:true,value:effectDefaults[type].initial};updateLayer(selectedLayer.id,{effects:[...(selectedLayer.effects??[]),effect]});}}><option value="">Choose a filter…</option><option value="blur">Gaussian blur</option><option value="brightness">Brightness</option><option value="contrast">Contrast</option><option value="saturate">Saturation</option><option value="grayscale">Grayscale</option><option value="sepia">Sepia</option><option value="hue-rotate">Hue rotation</option><option value="drop-shadow">Drop shadow</option></select></label><div className="effect-stack">{(selectedLayer.effects??[]).length ? (selectedLayer.effects??[]).map(effect=>{const meta=effectDefaults[effect.type];return <div className="effect-control" key={effect.id}><div className="effect-control-head"><label><input type="checkbox" checked={effect.enabled} onChange={e=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).map(item=>item.id===effect.id?{...item,enabled:e.target.checked}:item)})}/><strong>{meta.label}</strong></label><button className="footer-button" onClick={()=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).filter(item=>item.id!==effect.id)})}>Remove</button></div><div className="effect-control-value"><input aria-label={meta.label+' amount'} type="range" min={meta.min} max={meta.max} step={1} value={effect.value} onChange={e=>updateLayer(selectedLayer.id,{effects:(selectedLayer.effects??[]).map(item=>item.id===effect.id?{...item,value:Number(e.target.value)}:item)})}/><span>{effect.value}{meta.unit}</span></div></div>}) : <div className="empty-inspector">No effects on this layer. Add a filter above.</div>}</div></> : <div className="empty-inspector">Select a layer to edit its effects.</div>}{selectedLayer && <div className="inspector-section"><div className="section-title"><span>CLIP TRANSITIONS</span></div>
+  <label className="field-label">Transition in<select className="field-select" value={selectedLayer.transitionIn?.type ?? 'none'} onChange={e=>updateLayer(selectedLayer.id,{transitionIn:{type:e.target.value as ClipTransition,duration:selectedLayer.transitionIn?.duration??.5}})}><option value="none">None</option><option value="fade">Fade</option><option value="wipe-left">Wipe left-to-right</option><option value="wipe-right">Wipe right-to-left</option><option value="zoom">Zoom in</option></select></label>
+  <div className="property-row"><label>In duration</label><input aria-label="Transition in duration" type="range" min="0.1" max={Math.max(.1,Math.min(3,selectedLayer.duration))} step=".1" value={Math.min(selectedLayer.transitionIn?.duration??.5,Math.max(.1,Math.min(3,selectedLayer.duration)))} onChange={e=>updateLayer(selectedLayer.id,{transitionIn:{type:selectedLayer.transitionIn?.type??'none',duration:Number(e.target.value)}})}/><span>{(selectedLayer.transitionIn?.duration??.5).toFixed(1)}s</span></div>
+  <label className="field-label">Transition out<select className="field-select" value={selectedLayer.transitionOut?.type ?? 'none'} onChange={e=>updateLayer(selectedLayer.id,{transitionOut:{type:e.target.value as ClipTransition,duration:selectedLayer.transitionOut?.duration??.5}})}><option value="none">None</option><option value="fade">Fade</option><option value="wipe-left">Wipe left-to-right</option><option value="wipe-right">Wipe right-to-left</option><option value="zoom">Zoom out</option></select></label>
+  <div className="property-row"><label>Out duration</label><input aria-label="Transition out duration" type="range" min="0.1" max={Math.max(.1,Math.min(3,selectedLayer.duration))} step=".1" value={Math.min(selectedLayer.transitionOut?.duration??.5,Math.max(.1,Math.min(3,selectedLayer.duration)))} onChange={e=>updateLayer(selectedLayer.id,{transitionOut:{type:selectedLayer.transitionOut?.type??'none',duration:Number(e.target.value)}})}/><span>{(selectedLayer.transitionOut?.duration??.5).toFixed(1)}s</span></div>
+</div>}
+{selectedLayer && <div className="inspector-section"><div className="section-title"><span>MASK</span></div><label className="field-label">Mask shape<select className="field-select" value={selectedLayer.mask?.type??'none'} onChange={e=>updateLayer(selectedLayer.id,{mask:{type:e.target.value as LayerMask['type'],inset:selectedLayer.mask?.inset??0}})}><option value="none">No mask</option><option value="rectangle">Rectangle</option><option value="ellipse">Ellipse / circular</option></select></label>{selectedLayer.mask?.type!=='none'&&<div className="property-row"><label>Inset</label><input aria-label="Mask inset" type="range" min="0" max="45" step="1" value={selectedLayer.mask?.inset??0} onChange={e=>updateLayer(selectedLayer.id,{mask:{type:selectedLayer.mask?.type??'rectangle',inset:Number(e.target.value)}})}/><span>{selectedLayer.mask?.inset??0}%</span></div>}<p className="note-text">Geometric clipping masks are supported in the live preview and canvas export. Feathering, bezier paths and tracked masks are not included yet.</p></div>}
+{selectedLayer && <div className="inspector-section"><div className="section-title"><span>COLOR GRADE</span></div>
+  {([{key:'exposure',label:'Exposure',min:-4,max:4,step:.1},{key:'contrast',label:'Contrast',min:0,max:200,step:1},{key:'saturation',label:'Saturation',min:0,max:200,step:1},{key:'temperature',label:'Temperature',min:-100,max:100,step:1},{key:'tint',label:'Tint',min:-100,max:100,step:1}] as const).map(control=><div className="property-row grade-row" key={control.key}><label>{control.label}</label><input aria-label={control.label} type="range" min={control.min} max={control.max} step={control.step} value={selectedLayer.colorGrade?.[control.key]??(control.key==='contrast'||control.key==='saturation'?100:0)} onChange={e=>updateLayer(selectedLayer.id,{colorGrade:{exposure:0,contrast:100,saturation:100,temperature:0,tint:0,...selectedLayer.colorGrade,[control.key]:Number(e.target.value)}})}/><span>{(selectedLayer.colorGrade?.[control.key]??(control.key==='contrast'||control.key==='saturation'?100:0)).toFixed(control.step===.1?1:0)}</span></div>)}
+  <button className="footer-button" onClick={()=>updateLayer(selectedLayer.id,{colorGrade:{exposure:0,contrast:100,saturation:100,temperature:0,tint:0}})}>Reset grade</button>
+  <p className="note-text">Fast per-layer grading controls. Temperature and tint are approximated with CSS filters, not a color-managed grading pipeline or scopes.</p>
+</div>}</div> : panel==='audio' ? <div className="inspector-content"><div className="effect-intro"><div className="effect-spark"><AudioLines size={20}/></div><strong>Audio workspace</strong><span>Edit independent audio/video tracks with volume, mute, fade-in and fade-out envelopes. Export mixes supported tracks into WebM and runtime-supported MP4; waveform editing and advanced routing remain future work.</span></div><button className="secondary-btn full-width" onClick={() => void importMedia()}><Upload size={15}/> Import audio or media</button><div className="inspector-section"><div className="section-title"><span>PROJECT AUDIO</span></div>{project.layers.filter(l=>l.kind==='audio'||l.kind==='video').length ? project.layers.filter(l=>l.kind==='audio'||l.kind==='video').map(l=><div className="audio-item" key={l.id}><div className="audio-item-title"><AudioLines size={15}/><span>{l.name}</span></div><div className="audio-controls"><label><input type="checkbox" checked={l.muted??false} onChange={e=>updateLayer(l.id,{muted:e.target.checked})}/> Mute</label><input aria-label={`Volume for ${l.name}`} type="range" min="0" max="100" value={l.volume??100} onChange={e=>updateLayer(l.id,{volume:Number(e.target.value)})}/><span>{l.volume??100}%</span></div><div className="audio-fades"><label>Fade in <input aria-label={`Fade in for ${l.name}`} type="range" min="0" max={Math.min(5,l.duration)} step=".1" value={Math.min(l.audioFadeIn??0,Math.min(5,l.duration))} onChange={e=>updateLayer(l.id,{audioFadeIn:Number(e.target.value)})}/><span>{(l.audioFadeIn??0).toFixed(1)}s</span></label><label>Fade out <input aria-label={`Fade out for ${l.name}`} type="range" min="0" max={Math.min(5,l.duration)} step=".1" value={Math.min(l.audioFadeOut??0,Math.min(5,l.duration))} onChange={e=>updateLayer(l.id,{audioFadeOut:Number(e.target.value)})}/><span>{(l.audioFadeOut??0).toFixed(1)}s</span></label></div></div>) : <div className="empty-inspector">No audio clips yet.</div>}</div></div> : <AgentPanel projectContext={JSON.stringify({ name: project.name, width: project.width, height: project.height, fps: project.fps, duration: project.duration, layers: project.layers.map(({id,name,kind,start,duration,visible,locked,text,color,opacity,volume,muted,audioFadeIn,audioFadeOut,effects,transitionIn,transitionOut,mask,colorGrade}) => ({id,name,kind,start,duration,visible,locked,text,color,opacity,volume,muted,audioFadeIn,audioFadeOut,effects,transitionIn,transitionOut,mask,colorGrade})) })} onApplyPlan={applyAiPlan} />}
       </aside>
     </div>
-    <footer className="statusbar"><div><span className="status-led"/> Ready <span className="status-sep">/</span> Local project</div><div className="status-center"><span><Command size={12}/> S to save</span><span><Command size={12}/> Z to undo</span><span>Space to play</span></div><div>Motion Studio <span className="status-sep">·</span> 0.6.0</div></footer>
+    <footer className="statusbar"><div><span className="status-led"/> Ready <span className="status-sep">/</span> Local project</div><div className="status-center"><span><Command size={12}/> S to save</span><span><Command size={12}/> Z to undo</span><span>Space to play</span></div><div>Motion Studio <span className="status-sep">·</span> 0.7.0</div></footer>
     <input ref={fileInput} type="file" hidden accept="image/*,video/*,audio/*,.json" onChange={e=>{const f=e.target.files?.[0]; if(f?.name.toLowerCase().endsWith('.json')) void openBrowserProject(f); else importBrowserFile(f); e.currentTarget.value='';}}/>
   </div>;
 }
@@ -581,7 +616,7 @@ function KeyButton({active,onClick}:{active:boolean;onClick:()=>void}) { return 
 function LayerIcon({kind}:{kind:LayerKind}) { const props={size:14,strokeWidth:1.8}; if(kind==='text')return <Type {...props}/>;if(kind==='shape')return <Shapes {...props}/>;if(kind==='image')return <Image {...props}/>;if(kind==='video')return <Film {...props}/>;return <AudioLines {...props}/>; }
 function SkipBackIcon(){return <span className="skip-icon">|◀</span>}
 function SkipForwardIcon(){return <span className="skip-icon">▶|</span>}
-function AgentPanel({ projectContext }: { projectContext: string }) {
+function AgentPanel({ projectContext, onApplyPlan }: { projectContext: string; onApplyPlan: (plan: AiEditPlan) => { ok: boolean; message: string } }) {
   const [copied, setCopied] = useState(false);
   const [providers, setProviders] = useState<ApiProvider[]>([]);
   const [providerId, setProviderId] = useState('');
@@ -594,6 +629,8 @@ function AgentPanel({ projectContext }: { projectContext: string }) {
   const [providerStatus, setProviderStatus] = useState('');
   const [editPrompt, setEditPrompt] = useState('');
   const [editAnswer, setEditAnswer] = useState('');
+  const [editPlan, setEditPlan] = useState<AiEditPlan | null>(null);
+  const [planErrors, setPlanErrors] = useState<string[]>([]);
   const [asking, setAsking] = useState(false);
   const defaults: Record<ProviderKind, { name: string; url: string; model: string }> = {
     'openai-compatible': { name: 'OpenAI API', url: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' },
@@ -660,12 +697,24 @@ function AgentPanel({ projectContext }: { projectContext: string }) {
   };
   const askProvider = async () => {
     if (!window.motionStudio || !providerId || !editPrompt.trim()) { setProviderStatus('Choose a saved provider and describe the edit you want.'); return; }
-    setAsking(true); setEditAnswer(''); setProviderStatus('');
+    setAsking(true); setEditAnswer(''); setEditPlan(null); setPlanErrors([]); setProviderStatus('');
     try {
-      const result = await window.motionStudio.askProvider({ id: providerId, prompt: editPrompt, projectContext });
+      const instruction = 'Return ONLY a JSON object, no markdown, with schema {"summary":"short description","operations":[...],"riskNotes":[]}. Allowed operations: {"type":"update-layer","layerId":"existing id","patch":{"name":"...","start":0,"duration":5,"x":0,"y":0,"scale":1,"rotation":0,"opacity":100,"text":"...","color":"#aabbcc","visible":true,"volume":100,"muted":false,"audioFadeIn":0,"audioFadeOut":0,"effects":[],"transitionIn":{"type":"fade","duration":0.5},"transitionOut":{"type":"fade","duration":0.5},"mask":{"type":"ellipse","inset":0},"colorGrade":{"exposure":0,"contrast":100,"saturation":100,"temperature":0,"tint":0}},"reason":"..."}; {"type":"add-layer","kind":"text"|"shape","name":"...","start":0,"duration":5,"x":0,"y":0,"scale":1,"rotation":0,"opacity":100,"color":"#aabbcc","text":"...","reason":"..."}; {"type":"delete-layer","layerId":"existing id","confirm":true,"reason":"..."}; {"type":"set-project","patch":{"name":"...","width":1920,"height":1080,"fps":30,"duration":20},"reason":"..."}. Maximum 30 operations. Only use layer IDs present in project context. Do not invent media assets or unsupported tools. Prefer updating/adding layers; delete only if user explicitly asks. Keep all timings within the project duration unless extending duration. No code, shell commands, or arbitrary file operations. User request: ' + editPrompt;
+      const result = await window.motionStudio.askProvider({ id: providerId, prompt: instruction, projectContext });
       setEditAnswer(result.text);
+      const parsed = parseAiEditPlan(result.text);
+      if (parsed.ok) setEditPlan(parsed.plan); else setPlanErrors(parsed.errors);
     } catch (error) { setProviderStatus(error instanceof Error ? error.message : 'AI request failed'); }
     finally { setAsking(false); }
+  };
+  const applyPlan = () => {
+    if (!editPlan) return;
+    const destructive = editPlan.operations.some(operation => operation.type === 'delete-layer');
+    const message = `Apply ${editPlan.operations.length} proposed edit operation(s) to the current timeline? This creates one undo step.${destructive ? '\\n\\nThis plan includes layer deletion.' : ''}\\n\\nSummary: ${editPlan.summary}`;
+    if (!window.confirm(message)) return;
+    const result = onApplyPlan(editPlan);
+    if (result.ok) { setProviderStatus(result.message); setEditPlan(null); }
+    else setProviderStatus(result.message);
   };
   return <div className="inspector-content agent-panel">
     <div className="effect-intro"><div className="effect-spark"><Bot size={20}/></div><strong>AI & agent workspace</strong><span>Connect cloud APIs or compatible local endpoints, then ask an AI model for an edit plan based on your current composition.</span></div>
@@ -686,8 +735,10 @@ function AgentPanel({ projectContext }: { projectContext: string }) {
     <div className="inspector-section"><div className="section-title"><span>AI EDIT ASSISTANT</span></div>
       <label className="field-label">What should change?</label>
       <textarea className="text-edit provider-prompt" value={editPrompt} onChange={e=>setEditPrompt(e.target.value)} placeholder="Example: Make this a 20-second product trailer. Improve pacing, add a clear opening hook, suggest title animation and a music beat structure."/>
-      <button className="primary-btn full-width" disabled={asking||!providerId||!editPrompt.trim()} onClick={() => void askProvider()}><Sparkles size={14}/>{asking?'Thinking…':'Generate edit guidance'}</button>
-      {editAnswer&&<div className="provider-answer"><strong>Suggested edit plan</strong><p>{editAnswer}</p><span>Suggestions only — review and apply changes in the editor. This request does not automatically modify your timeline.</span></div>}
+      <button className="primary-btn full-width" disabled={asking||!providerId||!editPrompt.trim()} onClick={() => void askProvider()}><Sparkles size={14}/>{asking?'Planning edits…':'Generate editable plan'}</button>
+      {editAnswer&&<div className="provider-answer"><strong>AI response</strong><p>{editAnswer}</p></div>}
+      {planErrors.length>0&&<div className="provider-status plan-invalid" role="alert"><strong>Plan not ready to apply</strong>{planErrors.map((error,index)=><div key={index}>{error}</div>)}<span>Regenerate the plan or adjust the prompt. No project changes have been made.</span></div>}
+      {editPlan&&<div className="ai-plan-review"><strong>Review proposed timeline edits</strong><p>{editPlan.summary}</p><div className="ai-plan-operations">{editPlan.operations.map((operation,index)=><div className="ai-plan-operation" key={index}><span className="ai-plan-number">{index+1}</span><div><strong>{operation.type==='update-layer'?'Update layer':operation.type==='add-layer'?'Add '+operation.kind+' layer':operation.type==='delete-layer'?'Delete layer':'Project settings'}</strong><span>{operation.reason ?? (operation.type==='update-layer'?`Layer ${operation.layerId}: ${Object.keys(operation.patch).join(', ')}`:operation.type==='add-layer'?operation.name:operation.type==='delete-layer'?operation.layerId:Object.keys(operation.patch).join(', '))}</span></div></div>)}</div>{editPlan.riskNotes && editPlan.riskNotes.length > 0 && <div className="ai-plan-risks"><strong>Notes</strong>{editPlan.riskNotes.map((note,index)=><div key={index}>{note}</div>)}</div>}<button className="primary-btn full-width" onClick={applyPlan}>Review complete — apply edits</button><button className="secondary-btn full-width" onClick={()=>setEditPlan(null)}>Discard plan</button><span className="note-text">Applying creates a single Undo step. The plan is validated before any changes are committed; locked layers and invalid plans are rejected.</span></div>}
     </div>
     <div className="inspector-section"><div className="section-title"><span>MCP AGENT CONNECT</span></div>
       <ol className="agent-steps"><li>Save your composition as a project JSON file.</li><li>Install Node.js 20+ on this computer.</li><li>Copy the starter config and replace both example paths.</li><li>Add it to your MCP client's configuration, then restart that client.</li></ol>
@@ -695,8 +746,8 @@ function AgentPanel({ projectContext }: { projectContext: string }) {
       <p className="note-text">This is a template, not an active connection. Use real absolute paths on your computer.</p>
     </div>
     <div className="inspector-section"><div className="section-title"><span>AGENT TOOLS</span></div>
-      {['Inspect and validate project','Create text, shape, image, video and audio layers','Update transforms, visibility, timing and text','Add keyframe data','Change composition dimensions and FPS','Set blur, brightness, contrast and other layer effects','Control audio volume and mute settings','Duplicate and reorder layers','Delete layers only with explicit confirmation'].map(item => <div className="agent-tool-row" key={item}><span className="status-led"/><span>{item}</span></div>)}
+      {['Inspect and validate project','Create text, shape, image, video and audio layers','Update transforms, visibility, timing and text','Add keyframe data','Change composition dimensions and FPS','Set blur, brightness, contrast and other layer effects','Set clip in/out transitions, geometric masks and basic color grading','Control audio volume and mute settings','Duplicate and reorder layers','Delete layers only with explicit confirmation'].map(item => <div className="agent-tool-row" key={item}><span className="status-led"/><span>{item}</span></div>)}
     </div>
-    <div className="agent-warning"><strong>Current boundary</strong><span>AI models provide editing guidance and do not yet apply edits directly. Motion Studio currently exports WebM/PNG; professional multi-codec export, GPU compositing, masks and a complete Premiere-style editing pipeline remain future work.</span></div>
+    <div className="agent-warning"><strong>Current boundary</strong><span>AI plans can now be reviewed and applied to supported timeline operations with one-step Undo. This is still not feature-parity with Premiere Pro: GPU effects, advanced masks, transitions, professional color scopes and a full multi-codec render pipeline are not all implemented.</span></div>
   </div>;
 }

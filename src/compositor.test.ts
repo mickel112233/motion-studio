@@ -19,6 +19,10 @@ describe('layer effect renderer', () => {
       { id: 'hue', type: 'hue-rotate', enabled: true, value: 720 }
     ])).toBe('blur(40px) hue-rotate(360deg)');
   });
+  it('adds basic color grade filters with bounded exposure and color adjustments', () => {
+    expect(cssEffectFilter([], '#a78bfa', { exposure: 1, contrast: 110, saturation: 90, temperature: 0, tint: 0 })).toBe('brightness(200%) contrast(110%) saturate(90%)');
+    expect(cssEffectFilter(undefined, '#a78bfa', { exposure: 0, contrast: 100, saturation: 100, temperature: 20, tint: 10 })).toBe('brightness(100%) contrast(100%) saturate(100%) sepia(10%) hue-rotate(1.8deg)');
+  });
   it('uses the layer color for drop shadow', () => {
     expect(cssEffectFilter([{ id: 'shadow', type: 'drop-shadow', enabled: true, value: 12 }], '#ff0000')).toBe('drop-shadow(0 0 12px #ff0000)');
   });

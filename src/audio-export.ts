@@ -1,5 +1,14 @@
 import type { RenderLayer } from './compositor';
 
+export function normalizeAudioFades(duration: number, fadeIn = 0, fadeOut = 0): { fadeIn: number; fadeOut: number } {
+  const safeDuration = Number.isFinite(duration) ? Math.max(0, duration) : 0;
+  let inTime = Number.isFinite(fadeIn) ? Math.max(0, Math.min(safeDuration, fadeIn)) : 0;
+  let outTime = Number.isFinite(fadeOut) ? Math.max(0, Math.min(safeDuration, fadeOut)) : 0;
+  const total = inTime + outTime;
+  if (total > safeDuration && total > 0) { const factor = safeDuration / total; inTime *= factor; outTime *= factor; }
+  return { fadeIn: inTime, fadeOut: outTime };
+}
+
 export type AudioExportSession = {
   stream: MediaStream;
   start: () => void;
@@ -28,7 +37,7 @@ export async function createAudioExportSession(layers: RenderLayer[]): Promise<A
   if (!clips.length) return undefined;
   const context = new AudioContext();
   const destination = context.createMediaStreamDestination();
-  const entries: { audio: HTMLAudioElement; layer: RenderLayer }[] = [];
+  const entries: { audio: HTMLAudioElement; layer: RenderLayer; gain: GainNode }[] = [];
   const timers: number[] = [];
   try {
     for (const layer of clips) {
@@ -42,7 +51,7 @@ export async function createAudioExportSession(layers: RenderLayer[]): Promise<A
         gain.gain.value = Math.max(0, Math.min(1, (layer.volume ?? 100) / 100));
         source.connect(gain);
         gain.connect(destination);
-        entries.push({ audio, layer });
+        entries.push({ audio, layer, gain });
       } catch (error) {
         audio.pause(); audio.removeAttribute('src'); audio.load();
         if (layer.kind === 'video') continue;
@@ -59,6 +68,16 @@ export async function createAudioExportSession(layers: RenderLayer[]): Promise<A
       stream: destination.stream,
       start: () => {
         for (const entry of entries) {
+          const volume = Math.max(0, Math.min(1, (entry.layer.volume ?? 100) / 100));
+          const fades = normalizeAudioFades(entry.layer.duration, entry.layer.audioFadeIn ?? 0, entry.layer.audioFadeOut ?? 0);
+          const when = context.currentTime + Math.max(0, entry.layer.start);
+          entry.gain.gain.cancelScheduledValues(when);
+          entry.gain.gain.setValueAtTime(fades.fadeIn > 0 ? 0 : volume, when);
+          if (fades.fadeIn > 0) entry.gain.gain.linearRampToValueAtTime(volume, when + fades.fadeIn);
+          if (fades.fadeOut > 0) {
+            entry.gain.gain.setValueAtTime(volume, when + Math.max(0, entry.layer.duration - fades.fadeOut));
+            entry.gain.gain.linearRampToValueAtTime(0, when + Math.max(0, entry.layer.duration));
+          }
           const startTimer = window.setTimeout(() => {
             entry.audio.currentTime = 0;
             void entry.audio.play().catch(() => {});
