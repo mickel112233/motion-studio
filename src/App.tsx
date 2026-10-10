@@ -25,8 +25,8 @@ const initialLayer = (kind: LayerKind, name: string, index: number): Layer => ({
   text: kind === 'text' ? 'Your next big idea.' : undefined,
   keyframes: [{ time: 0, x: 0, y: 0, scale: 1, rotation: 0, opacity: 100 }]
 });
-const upsertKeyframe = (layer: Layer, time: number, easing?: Easing) => {
-  const transform = evaluateTransform(layer, time);
+const upsertKeyframe = (layer: Layer, time: number, transformPatch: Partial<Pick<Layer, 'x' | 'y' | 'scale' | 'rotation' | 'opacity'>> = {}, easing?: Easing) => {
+  const transform = { ...evaluateTransform(layer, time), ...transformPatch };
   const existing = layer.keyframes.find(k => Math.abs(k.time - time) < 1e-7);
   const frame = { time, ...transform, easing: easing ?? existing?.easing ?? ('linear' as Easing) };
   return [...layer.keyframes.filter(k => Math.abs(k.time - time) >= 1e-7), frame].sort((a,b) => a.time - b.time);
@@ -57,6 +57,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'timeline' | 'graph'>('timeline');
   const fileInput = useRef<HTMLInputElement>(null);
   const selectedLayer = project.layers.find(l => l.id === selected) ?? project.layers[0];
+  const selectedTransform = selectedLayer ? evaluateTransform(selectedLayer, currentTime) : undefined;
   const selectedKeyframe = selectedLayer?.keyframes.find(k => Math.abs(k.time - currentTime) < (1 / project.fps) / 2);
 
   const updateLayer = useCallback((id: string, patch: Partial<Layer>) => {
@@ -74,6 +75,11 @@ export default function App() {
     });
     setStatus('Unsaved changes');
   }, []);
+  const editTransformAtPlayhead = (layer: Layer, patch: Partial<Pick<Layer, 'x' | 'y' | 'scale' | 'rotation' | 'opacity'>>) => {
+    const atKeyframe = layer.keyframes.some(k => Math.abs(k.time - currentTime) < (1 / project.fps) / 2);
+    if (layer.keyframes.length > 1 || atKeyframe) updateLayer(layer.id, { keyframes: upsertKeyframe(layer, currentTime, patch) });
+    else updateLayer(layer.id, patch);
+  };
   const addLayer = (kind: LayerKind) => {
     const name = kind === 'text' ? 'Text layer' : kind === 'shape' ? 'Shape layer' : kind === 'audio' ? 'Audio layer' : kind === 'video' ? 'Video layer' : 'Image layer';
     const layer = initialLayer(kind, name, project.layers.length);
@@ -255,7 +261,7 @@ export default function App() {
         <div className="inspector-tabs"><button className={panel==='project'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('project')}>Properties</button><button className={panel==='effects'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('effects')}>Effects</button><button className={panel==='audio'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('audio')}>Audio</button><button className={panel==='agents'?'inspector-tab selected':'inspector-tab'} onClick={() => setPanel('agents')}><Bot size={13}/> Agents</button></div>
         {panel==='project' ? <div className="inspector-content">
           <div className="inspector-section"><div className="section-title"><span>TRANSFORM</span><button className="icon-btn tiny"><ChevronDown size={14}/></button></div>
-            {selectedLayer ? <><div className="property-row"><label>Position X</label><NumberField value={selectedLayer.x} onChange={v=>updateLayer(selectedLayer.id,{x:v})}/></div><div className="property-row"><label>Position Y</label><NumberField value={selectedLayer.y} onChange={v=>updateLayer(selectedLayer.id,{y:v})}/></div><div className="property-row"><label>Scale</label><NumberField value={Math.round(selectedLayer.scale*100)} suffix="%" onChange={v=>updateLayer(selectedLayer.id,{scale:v/100})}/><KeyButton active={selectedLayer.keyframes.some(k=>k.time===currentTime)} onClick={()=>updateLayer(selectedLayer.id,{keyframes:upsertKeyframe(selectedLayer,currentTime)})}/></div><div className="property-row"><label>Rotation</label><NumberField value={selectedLayer.rotation} suffix="°" onChange={v=>updateLayer(selectedLayer.id,{rotation:v})}/><KeyButton active={selectedLayer.keyframes.some(k=>k.time===currentTime)} onClick={()=>updateLayer(selectedLayer.id,{keyframes:upsertKeyframe(selectedLayer,currentTime)})}/></div><div className="property-row"><label>Opacity</label><NumberField value={selectedLayer.opacity} suffix="%" onChange={v=>updateLayer(selectedLayer.id,{opacity:Math.max(0,Math.min(100,v))})}/><KeyButton active={selectedLayer.keyframes.some(k=>k.time===currentTime)} onClick={()=>updateLayer(selectedLayer.id,{keyframes:upsertKeyframe(selectedLayer,currentTime)})}/></div></> : <div className="empty-inspector">Select a layer to edit its properties.</div>}
+            {selectedLayer ? <><div className="property-row"><label>Position X</label><NumberField value={selectedTransform?.x ?? selectedLayer.x} onChange={v=>editTransformAtPlayhead(selectedLayer,{x:v})}/><KeyButton active={!!selectedKeyframe} onClick={()=>updateLayer(selectedLayer.id,{keyframes:upsertKeyframe(selectedLayer,currentTime)})}/></div><div className="property-row"><label>Position Y</label><NumberField value={selectedTransform?.y ?? selectedLayer.y} onChange={v=>editTransformAtPlayhead(selectedLayer,{y:v})}/><KeyButton active={!!selectedKeyframe} onClick={()=>updateLayer(selectedLayer.id,{keyframes:upsertKeyframe(selectedLayer,currentTime)})}/></div><div className="property-row"><label>Scale</label><NumberField value={Math.round((selectedTransform?.scale ?? selectedLayer.scale)*100)} suffix="%" onChange={v=>editTransformAtPlayhead(selectedLayer,{scale:v/100})}/><KeyButton active={!!selectedKeyframe} onClick={()=>updateLayer(selectedLayer.id,{keyframes:upsertKeyframe(selectedLayer,currentTime)})}/></div><div className="property-row"><label>Rotation</label><NumberField value={selectedTransform?.rotation ?? selectedLayer.rotation} suffix="°" onChange={v=>editTransformAtPlayhead(selectedLayer,{rotation:v})}/><KeyButton active={!!selectedKeyframe} onClick={()=>updateLayer(selectedLayer.id,{keyframes:upsertKeyframe(selectedLayer,currentTime)})}/></div><div className="property-row"><label>Opacity</label><NumberField value={selectedTransform?.opacity ?? selectedLayer.opacity} suffix="%" onChange={v=>editTransformAtPlayhead(selectedLayer,{opacity:Math.max(0,Math.min(100,v))})}/><KeyButton active={!!selectedKeyframe} onClick={()=>updateLayer(selectedLayer.id,{keyframes:upsertKeyframe(selectedLayer,currentTime)})}/></div></> : <div className="empty-inspector">Select a layer to edit its properties.</div>}
           </div>
           {selectedLayer?.kind==='text' && <div className="inspector-section"><div className="section-title"><span>TYPOGRAPHY</span><ChevronDown size={14}/></div><label className="field-label">Text content</label><textarea className="text-edit" value={selectedLayer.text??''} onChange={e=>updateLayer(selectedLayer.id,{text:e.target.value})}/><div className="property-row"><label>Color</label><input className="color-input" type="color" value="#f4f2ff" aria-label="Text color"/></div></div>}
           {selectedLayer?.kind==='shape' && <div className="inspector-section"><div className="section-title"><span>APPEARANCE</span><ChevronDown size={14}/></div><div className="property-row"><label>Fill color</label><input className="color-input" type="color" value={selectedLayer.color} onChange={e=>updateLayer(selectedLayer.id,{color:e.target.value})}/></div></div>}
