@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('motionStudio', {
     ipcRenderer.on('project:external-change', listener);
     return () => ipcRenderer.removeListener('project:external-change', listener);
   },
+  getExportCapabilities: () => ipcRenderer.invoke('export:capabilities'),
   listProviders: () => ipcRenderer.invoke('providers:list'),
   saveProvider: (provider) => ipcRenderer.invoke('providers:save', provider),
   deleteProvider: (id) => ipcRenderer.invoke('providers:delete', id),
