@@ -67,6 +67,8 @@ test('MCP server initializes and safely edits a configured project', async () =>
     assert.equal(saved.layers[0].text, 'Hello from MCP');
     assert.equal(saved.layers[0].keyframes.find(frame => frame.time === 4).easing, 'ease-in');
     assert.equal(saved.layers[0].effects.length, 2);
+    assert.equal(saved.layers[0].volume, 65);
+    assert.equal(saved.layers[0].muted, true);
   } finally {
     child.stdin.end();
     child.kill();
