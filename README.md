@@ -10,7 +10,7 @@
 - Text, shape and imported media layers; editable transforms, timing, color, composition dimensions and frame rate.
 - Live per-layer filter stack: blur, brightness, contrast, saturation, grayscale, sepia, hue rotation and drop shadow.
 - Import local image, video and audio files into the project layer list; control audio volume and mute state.
-- Validated project open/save, Save As, atomic desktop writes, and basic external-file change detection.
+- Validated project open/save, Save As, atomic desktop writes, debounced autosave, recovery snapshots, and external-file conflict detection.
 - Export a rendered PNG frame or an animated WebM video from the canvas compositor (up to 120 seconds in this beta).
 - Undo/redo, visibility and locking controls, animated transform keyframes with linear/ease-in/ease-out/ease-in-out/hold interpolation, and editable outgoing easing.
 - Windows NSIS packaging configuration.
@@ -72,7 +72,7 @@ The MCP server edits a configured saved project file. The desktop app watches th
 
 ## Planned engineering milestones
 
-1. Project schema migrations, autosave, recovery and explicit multi-writer locking.
+1. Project schema migrations, richer crash recovery and explicit multi-writer locking.
 2. Property-level keyframes, bezier easing, graph curves and animation presets.
 3. Canvas/WebGL compositor, masks, blend modes and effect stack.
 4. Live audio preview playback, waveform display and timeline synchronization.
