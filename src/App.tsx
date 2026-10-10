@@ -258,7 +258,7 @@ export default function App() {
   const save = async () => {
     if (autosavePromiseRef.current) await autosavePromiseRef.current.catch(() => undefined);
     if (externalConflict) { setStatus('External changes conflict — use Open to reload or Save As to preserve your local version'); return; }
-    const data = { ...project, savedAt: new Date().toISOString(), schemaVersion: 1 };
+    const data = { ...latestProjectRef.current, savedAt: new Date().toISOString(), schemaVersion: 1 };
     if (window.motionStudio) {
       try { const result = await window.motionStudio.saveProject(data); if (result.conflict) { setExternalConflict(true); setStatus('External edits detected — use Open to reload or Save As to preserve your local version'); return; } if (!result.canceled) { setIsDirty(false); setStatus('Saved to ' + result.filePath); } }
       catch { setStatus('Save failed'); }
