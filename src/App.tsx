@@ -139,7 +139,8 @@ export default function App() {
       catch { setStatus('Save failed'); }
     } else {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.motion.json`; a.click(); URL.revokeObjectURL(a.href); setStatus('Project downloaded');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `${project.name.replace(/[^a-z0-9-_]/gi, '-')}.motion.json`; a.click(); window.setTimeout(() => URL.revokeObjectURL(url), 5000); setStatus('Project downloaded');
     }
   };
   const saveAs = async () => {
@@ -179,13 +180,16 @@ export default function App() {
     if (window.motionStudio) {
       try {
         const files = await window.motionStudio.importMedia();
-        files.forEach(f => {
+        const imported = files.map((f, index) => {
           const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
           const kind: LayerKind = ['mp4','mov','webm'].includes(ext) ? 'video' : ['mp3','wav','ogg','m4a'].includes(ext) ? 'audio' : 'image';
-          const l = { ...initialLayer(kind, f.name, project.layers.length), assetUrl: f.url };
-          setProject(p => ({ ...p, layers: [...p.layers, l] })); setSelected(l.id);
+          return { ...initialLayer(kind, f.name, project.layers.length + index), assetUrl: f.url };
         });
-        if (files.length) setStatus(`Imported ${files.length} media item(s)`);
+        if (imported.length) {
+          updateProject(p => ({ ...p, layers: [...p.layers, ...imported] }));
+          setSelected(imported[imported.length - 1].id);
+          setStatus(`Imported ${imported.length} media item(s)`);
+        }
       } catch { setStatus('Import failed'); }
     } else fileInput.current?.click();
   };
@@ -194,7 +198,7 @@ export default function App() {
     const kind: LayerKind = file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : file.type.startsWith('image/') ? 'image' : 'image';
     const url = URL.createObjectURL(file);
     const layer = { ...initialLayer(kind, file.name, project.layers.length), assetUrl: url };
-    setProject(p => ({ ...p, layers: [...p.layers, layer] })); setSelected(layer.id); setStatus('Imported ' + file.name);
+    updateProject(p => ({ ...p, layers: [...p.layers, layer] })); setSelected(layer.id); setStatus('Imported ' + file.name);
   };
   const exportFrame = async () => {
     const canvas = document.querySelector<HTMLCanvasElement>('#composition-canvas');
