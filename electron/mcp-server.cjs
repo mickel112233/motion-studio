@@ -200,7 +200,7 @@ async function handle(m) {
   try {
     let result;
     switch (m.method) {
-      case 'initialize': result = {protocolVersion:m.params?.protocolVersion || '2024-11-05',capabilities:{tools:{listChanged:false},resources:{subscribe:false,listChanged:false},prompts:{listChanged:false}},serverInfo:{name:'motion-studio-mcp',version:'0.3.0'},instructions:'Tools modify one explicitly configured saved Motion Studio project. Inspect and validate before editing. Layer deletion requires confirm=true. This server does not render video.'}; break;
+      case 'initialize': result = {protocolVersion:m.params?.protocolVersion || '2024-11-05',capabilities:{tools:{listChanged:false},resources:{subscribe:false,listChanged:false},prompts:{listChanged:false}},serverInfo:{name:'motion-studio-mcp',version:'0.4.0'},instructions:'Tools modify one explicitly configured saved Motion Studio project. Inspect and validate before editing. Layer deletion requires confirm=true. This server does not render video.'}; break;
       case 'ping': result = {}; break;
       case 'tools/list': result = {tools}; break;
       case 'tools/call': {
