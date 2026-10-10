@@ -22,6 +22,8 @@ jobs:
         run: npm run mcp:check
       - name: Test MCP server
         run: npm run test:mcp
+      - name: Test animation engine
+        run: npm run test:unit
       - name: Type-check
         run: npm run typecheck
       - name: Build renderer
