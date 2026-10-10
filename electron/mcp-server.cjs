@@ -24,7 +24,25 @@ function validate(p) {
   num(p.fps, 'fps', 1, 240); num(p.duration, 'duration', .1, 86400);
   fail(Array.isArray(p.layers) && p.layers.length <= 10000, 'layers must be an array of at most 10,000 items');
   const ids = new Set();
-  for (const l of p.layers) { fail(l && typeof l === 'object' && typeof l.id === 'string', 'Invalid layer'); fail(!ids.has(l.id), 'Duplicate layer id: ' + l.id); ids.add(l.id); fail(['text','shape','image','video','audio'].includes(l.kind), 'Invalid layer kind'); }
+  const numeric = (v) => typeof v === 'number' && Number.isFinite(v);
+  for (const l of p.layers) {
+    fail(l && typeof l === 'object' && !Array.isArray(l) && typeof l.id === 'string' && l.id.length > 0 && l.id.length <= 160, 'Invalid layer ID');
+    fail(!ids.has(l.id), 'Duplicate layer id: ' + l.id); ids.add(l.id);
+    fail(['text','shape','image','video','audio'].includes(l.kind), 'Invalid layer kind: ' + l.id);
+    fail(typeof l.name === 'string' && l.name.trim().length > 0 && l.name.length <= 200, 'Invalid layer name: ' + l.id);
+    fail(typeof l.visible === 'boolean' && typeof l.locked === 'boolean', 'Layer visibility and lock state must be boolean: ' + l.id);
+    for (const key of ['start','duration','x','y','scale','rotation','opacity']) fail(numeric(l[key]), 'Invalid numeric layer property ' + key + ': ' + l.id);
+    fail(l.start >= 0 && l.duration > 0 && l.scale > 0 && l.opacity >= 0 && l.opacity <= 100, 'Layer transform or timing out of range: ' + l.id);
+    fail(l.start <= p.duration, 'Layer starts after composition duration: ' + l.id);
+    fail(typeof l.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(l.color), 'Invalid layer color: ' + l.id);
+    fail(l.keyframes === undefined || (Array.isArray(l.keyframes) && l.keyframes.length <= 10000), 'Invalid keyframes: ' + l.id);
+    for (const k of l.keyframes || []) {
+      fail(k && numeric(k.time) && k.time >= 0 && k.time <= p.duration, 'Invalid keyframe time: ' + l.id);
+      for (const key of ['x','y','scale','rotation','opacity']) fail(numeric(k[key]), 'Invalid keyframe property ' + key + ': ' + l.id);
+      fail(k.scale > 0 && k.opacity >= 0 && k.opacity <= 100, 'Keyframe transform out of range: ' + l.id);
+      if (k.easing !== undefined) fail(['linear','ease-in','ease-out','ease-in-out','hold'].includes(k.easing), 'Invalid keyframe easing: ' + l.id);
+    }
+  }
 }
 async function read() {
   let b; try { b = await fs.readFile(file); } catch (e) { if (e.code === 'ENOENT') return emptyProject(); throw e; }
@@ -48,7 +66,7 @@ const tools = [
  { name:'layers.create', description:'Create a layer. Writes the configured project file.', inputSchema:{type:'object',required:['kind','name'],properties:{kind:{type:'string',enum:['text','shape','image','video','audio']},name:{type:'string',minLength:1,maxLength:160},text:{type:'string',maxLength:10000},color:{type:'string',pattern:'^#[0-9a-fA-F]{6}$'},start:{type:'number',minimum:0},duration:{type:'number',exclusiveMinimum:0},x:{type:'number'},y:{type:'number'}},additionalProperties:false} },
  { name:'layers.update', description:'Update allowed properties of an existing layer. Locked layers require unlockFirst=true.', inputSchema:{type:'object',required:['id','patch'],properties:{id:{type:'string'},unlockFirst:{type:'boolean'},patch:{type:'object',properties:{name:{type:'string',maxLength:160},color:{type:'string',pattern:'^#[0-9a-fA-F]{6}$'},visible:{type:'boolean'},locked:{type:'boolean'},start:{type:'number',minimum:0},duration:{type:'number',exclusiveMinimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0,maximum:1000},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100},text:{type:'string',maxLength:10000}},additionalProperties:false}},additionalProperties:false} },
  { name:'layers.delete', description:'Destructively delete one layer; requires explicit confirm=true and layer must be unlocked.', inputSchema:{type:'object',required:['id','confirm'],properties:{id:{type:'string'},confirm:{type:'boolean',const:true}},additionalProperties:false} },
- { name:'layers.add_keyframe', description:'Add or replace a transform keyframe. Keyframe storage is supported; full animation interpolation is not yet implemented.', inputSchema:{type:'object',required:['id','time'],properties:{id:{type:'string'},time:{type:'number',minimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100},easing:{type:'string',enum:['linear','ease-in','ease-out','ease-in-out','hold']}},additionalProperties:false} },
+ { name:'layers.add_keyframe', description:'Add or replace an animated transform keyframe, including its outgoing easing curve.', inputSchema:{type:'object',required:['id','time'],properties:{id:{type:'string'},time:{type:'number',minimum:0},x:{type:'number'},y:{type:'number'},scale:{type:'number',exclusiveMinimum:0},rotation:{type:'number'},opacity:{type:'number',minimum:0,maximum:100},easing:{type:'string',enum:['linear','ease-in','ease-out','ease-in-out','hold']}},additionalProperties:false} },
  { name:'layers.duplicate', description:'Duplicate an existing unlocked or locked layer with a new ID and optional offset.', inputSchema:{type:'object',required:['id'],properties:{id:{type:'string'},name:{type:'string',maxLength:160},offsetX:{type:'number'},offsetY:{type:'number'},offsetTime:{type:'number',minimum:0}},additionalProperties:false} },
  { name:'layers.reorder', description:'Move a layer to a new zero-based stack index.', inputSchema:{type:'object',required:['id','index'],properties:{id:{type:'string'},index:{type:'integer',minimum:0,maximum:9999}},additionalProperties:false} },
  { name:'project.update_settings', description:'Update project name, width, height, fps or duration.', inputSchema:{type:'object',properties:{name:{type:'string',maxLength:200},width:{type:'number',minimum:16,maximum:16384},height:{type:'number',minimum:16,maximum:16384},fps:{type:'number',minimum:1,maximum:240},duration:{type:'number',exclusiveMinimum:0,maximum:86400}},additionalProperties:false} }
@@ -150,7 +168,7 @@ async function handle(m) {
   try {
     let result;
     switch (m.method) {
-      case 'initialize': result = {protocolVersion:m.params?.protocolVersion || '2024-11-05',capabilities:{tools:{listChanged:false},resources:{subscribe:false,listChanged:false},prompts:{listChanged:false}},serverInfo:{name:'motion-studio-mcp',version:'0.2.0'},instructions:'Tools modify one explicitly configured saved Motion Studio project. Inspect and validate before editing. Layer deletion requires confirm=true. This server does not render video.'}; break;
+      case 'initialize': result = {protocolVersion:m.params?.protocolVersion || '2024-11-05',capabilities:{tools:{listChanged:false},resources:{subscribe:false,listChanged:false},prompts:{listChanged:false}},serverInfo:{name:'motion-studio-mcp',version:'0.3.0'},instructions:'Tools modify one explicitly configured saved Motion Studio project. Inspect and validate before editing. Layer deletion requires confirm=true. This server does not render video.'}; break;
       case 'ping': result = {}; break;
       case 'tools/list': result = {tools}; break;
       case 'tools/call': {
