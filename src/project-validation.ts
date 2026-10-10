@@ -47,7 +47,7 @@ export function isValidProject(value: unknown): value is ValidatedProject {
     for (const transitionKey of ['transitionIn','transitionOut']) {
       if (l[transitionKey] !== undefined) {
         const transition = l[transitionKey] as Record<string, unknown>;
-        if (!transition || typeof transition !== 'object' || Array.isArray(transition) || !['none','fade','wipe-left','wipe-right','zoom'].includes(String(transition.type)) || !finite(transition.duration) || transition.duration < 0 || transition.duration > Math.min(30, l.duration as number)) return false;
+        if (!transition || typeof transition !== 'object' || Array.isArray(transition) || !['none','fade','wipe-left','wipe-right','zoom'].includes(String(transition.type)) || !finite(transition.duration) || transition.duration < 0 || transition.duration > 30) return false;
       }
     }
     if (l.mask !== undefined) {
