@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Check Electron entrypoints
-        run: node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/mcp-server.cjs
+        run: node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/mcp-server.cjs && node --check electron/ffmpeg-runtime.cjs && node --check electron/ffmpeg-export.cjs
       - name: Test MCP server
         run: npm run test:mcp
       - name: Test unit suite

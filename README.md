@@ -21,10 +21,16 @@ Open the **Agents** inspector tab, add a provider, choose its API type, set the 
 - Import local image, video and audio files into the project layer list; edit independent per-track volume, mute, fade-in and fade-out envelopes, mixed during WebM/MP4 export where supported.
 - Playhead-synchronized video and audio preview with source audio controls.
 - Validated project open/save, Save As, atomic desktop writes, debounced autosave, recovery snapshots, external-file conflict detection that preserves the saved baseline until an external version is explicitly accepted, and a versioned project schema that upgrades legacy unversioned files to v1 in memory.
-- Export a rendered PNG frame or animated WebM video from the canvas compositor (up to 120 seconds in this beta); MP4 is offered only when the current runtime advertises a compatible MediaRecorder encoder.
+- Export a rendered PNG frame or animated WebM video from the canvas compositor (up to 120 seconds in this beta); MP4 uses browser MediaRecorder when available or the FFmpeg fallback when required.
 - Undo/redo, visibility and locking controls, animated transform keyframes with linear/ease-in/ease-out/ease-in-out/hold interpolation, and editable outgoing easing.
 - Windows NSIS packaging configuration.
+- FFmpeg-backed H.264 MP4 export from rendered RGBA frames, with bounded dimensions, progress, cancellation, and safe argument-based process launch. The fallback mixes up to 32 local-file audio layers with timing, volume, and fade envelopes; browser WebM remains an alternative.
+- Export runtime diagnostics that look for FFmpeg in packaged/project runtime locations and PATH, verify the executable version, and report encoder availability.
 - **MCP server for external agents** to inspect/validate projects, create/update/duplicate/reorder/delete layers, change composition settings, set live effect stacks, and edit keyframes including easing.
+
+## Export runtime detection
+
+Motion Studio checks for an FFmpeg executable in its expected runtime folders and on `PATH`. To make it detectable, install FFmpeg for your operating system and ensure `ffmpeg` (or `ffmpeg.exe` on Windows) is available on `PATH`, then restart Motion Studio. A local runtime can also be placed under `assets/runtime/ffmpeg/` when running from the project checkout. FFmpeg is used as an MP4 fallback when detected and the browser does not support MP4 encoding. The fallback mixes up to 32 audio layers backed by local files, including timeline offsets, volume, fade-in and fade-out. Audio layers and video sources available only as temporary browser object URLs are skipped. Embedded video audio requires `ffprobe`; advanced audio routing and source-clip trim offsets are not yet supported. Browser WebM remains available as an alternative. FFmpeg is not bundled with the installer, so install it separately or provide a runtime binary.
 
 ## Run on Windows
 
@@ -77,7 +83,7 @@ Replace both example paths with real absolute paths. See docs/AGENTS-MCP.md for 
 
 ## Important scope notes
 
-This repository is an evolving foundation, **not a complete After Effects replacement yet**. The editor evaluates transform keyframes with interpolation and easing, and exports animated WebM from its canvas compositor. A GPU compositing/effects graph, feathered/bezier/tracked masks, waveform editing, advanced audio routing, professional color scopes/LUT workflows, and an FFmpeg-based production export pipeline are not implemented. Color temperature/tint are approximated using CSS filters rather than a color-managed pipeline. WebM export can mix audio clips and source-video audio with per-layer volume/mute settings. The current filter stack uses CSS/canvas filters; some visual rendering details differ from the interactive DOM preview.
+This repository is an evolving foundation, **not a complete After Effects replacement yet**. The editor evaluates transform keyframes with interpolation and easing, and exports animated WebM from its canvas compositor. A GPU compositing/effects graph, feathered/bezier/tracked masks, waveform editing, advanced audio routing, professional color scopes/LUT workflows, and a complete FFmpeg production export pipeline are not implemented; the FFmpeg MP4 fallback mixes supported local-file audio layers but does not yet include audio embedded in video sources. Color temperature/tint are approximated using CSS filters rather than a color-managed pipeline. WebM export can mix audio clips and source-video audio with per-layer volume/mute settings. The current filter stack uses CSS/canvas filters; some visual rendering details differ from the interactive DOM preview.
 
 The MCP server edits a configured saved project file and can update clip transitions, geometric masks and basic color-grade properties. The desktop app watches the active file and can reload agent edits; if local changes are unsaved, it prompts before replacing them and blocks a conflicting Save until resolved. Keep one writer agent active at a time and review agent-generated edits.
 
@@ -87,7 +93,7 @@ The MCP server edits a configured saved project file and can update clip transit
 2. Property-level keyframes, bezier easing, graph curves and animation presets.
 3. Canvas/WebGL compositor, advanced masks, blend modes and effect stack.
 4. Live audio preview playback, waveform display and timeline synchronization.
-5. FFmpeg-backed export, audio muxing, image sequences, cancellation and detailed render errors.
+5. Embedded audio from video sources, advanced audio routing, image sequences, embedded audio from video sources, advanced audio routing, image sequences, and detailed render diagnostics. MP4 export now rejects incomplete frame sequences and terminates its FFmpeg process on failure; it mixes supported local-file audio layers.
 6. Automated unit tests, renderer E2E tests and Windows packaging validation.
 7. Scoped MCP permissions, undoable agent transactions, task approvals and plugin/extension API.
 

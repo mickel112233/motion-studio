@@ -3,7 +3,9 @@ const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { pathToFileURL } = require('node:url');
+const { pathToFileURL, fileURLToPath } = require('node:url');
+const { inspectFfmpeg, probeAudioStream } = require('./ffmpeg-runtime.cjs');
+const { createFfmpegFrameExporter, validateExportSpec, validateCompletedFrameCount } = require('./ffmpeg-export.cjs');
 
 const isDev = !app.isPackaged;
 const MAX_PROJECT_BYTES = 20 * 1024 * 1024;
@@ -13,6 +15,7 @@ let lastNotifiedExternalHash = null;
 let projectWatcher = null;
 let watchTimer = null;
 let mainWindow = null;
+let ffmpegExportSession = null;
 
 function validateProject(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Project must be a JSON object');
@@ -232,6 +235,94 @@ function createWindow() {
 }
 app.whenReady().then(() => {
 
+  ipcMain.handle('export:capabilities', async () => ({ ffmpeg: inspectFfmpeg({ resourcesPath: process.resourcesPath, appPath: app.getAppPath() }) }));
+
+  ipcMain.handle('export:ffmpeg-begin', async (_event, input) => {
+    if (ffmpegExportSession) throw new Error('Another FFmpeg export is already running');
+    const runtime = inspectFfmpeg({ resourcesPath: process.resourcesPath, appPath: app.getAppPath() });
+    if (!runtime.available) throw new Error(runtime.message || 'FFmpeg is unavailable');
+    const spec = validateExportSpec({ width: input?.width, height: input?.height, fps: input?.fps });
+    const duration = Number(input?.duration);
+    if (!Number.isFinite(duration) || duration <= 0 || duration > 120) throw new Error('Export duration must be greater than 0 and at most 120 seconds');
+    const suppliedAudio = Array.isArray(input?.audioClips) ? input.audioClips : [];
+    const suppliedVideoAudio = Array.isArray(input?.videoAudioClips) ? input.videoAudioClips : [];
+    if (suppliedAudio.length + suppliedVideoAudio.length > 32) throw new Error('MP4 export supports up to 32 audio clips');
+    const audioClips = [];
+    const resolveLocalMedia = async clip => {
+      if (!clip || typeof clip.url !== 'string' || !clip.url.startsWith('file:')) return null;
+      let clipPath;
+      try { clipPath = fileURLToPath(clip.url); } catch { return null; }
+      const stat = await fs.stat(clipPath).catch(() => null);
+      return stat?.isFile() ? clipPath : null;
+    };
+    for (const clip of suppliedAudio) {
+      const clipPath = await resolveLocalMedia(clip);
+      if (!clipPath) continue;
+      audioClips.push({ path: clipPath, start: clip.start, duration: clip.duration, volume: clip.volume, fadeIn: clip.fadeIn, fadeOut: clip.fadeOut });
+    }
+    let embeddedAudioCount = 0;
+    for (const clip of suppliedVideoAudio) {
+      const clipPath = await resolveLocalMedia(clip);
+      if (!clipPath || !await probeAudioStream({ ffmpegPath: runtime.executable, filePath: clipPath })) continue;
+      audioClips.push({ path: clipPath, start: clip.start, duration: clip.duration, volume: clip.volume, fadeIn: clip.fadeIn, fadeOut: clip.fadeOut });
+      embeddedAudioCount += 1;
+    }
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export MP4 video',
+      defaultPath: 'motion-studio-export.mp4',
+      buttonLabel: 'Export MP4',
+      filters: [{ name: 'MP4 Video', extensions: ['mp4'] }]
+    });
+    if (canceled || !filePath) return { canceled: true };
+    if (path.extname(filePath).toLowerCase() !== '.mp4') throw new Error('Choose an .mp4 output filename');
+    const exporter = createFfmpegFrameExporter({
+      executable: runtime.executable,
+      outputPath: filePath,
+      width: spec.width,
+      height: spec.height,
+      fps: spec.fps,
+      duration,
+      audioClips
+    });
+    const id = crypto.randomUUID();
+    ffmpegExportSession = { id, exporter, outputPath: filePath, frameCount: 0, duration, audioClipCount: audioClips.length, embeddedAudioCount };
+    return { canceled: false, id, outputPath: filePath, audioClipCount: audioClips.length, embeddedAudioCount };
+  });
+
+  ipcMain.handle('export:ffmpeg-frame', async (_event, input) => {
+    const session = ffmpegExportSession;
+    if (!session || input?.id !== session.id) throw new Error('FFmpeg export session is not active');
+    if (session.frameCount >= Math.ceil(session.duration * session.exporter.spec.fps)) throw new Error('All frames for this export have already been written');
+    await session.exporter.writeFrame(input.frame);
+    session.frameCount += 1;
+    return { framesWritten: session.frameCount };
+  });
+
+  ipcMain.handle('export:ffmpeg-finish', async (_event, input) => {
+    const session = ffmpegExportSession;
+    if (!session || input?.id !== session.id) throw new Error('FFmpeg export session is not active');
+    try {
+      validateCompletedFrameCount(session.frameCount, session.duration, session.exporter.spec.fps);
+      await session.exporter.finish();
+      return { outputPath: session.outputPath, framesWritten: session.frameCount, audioClipCount: session.audioClipCount, embeddedAudioCount: session.embeddedAudioCount };
+    } catch (error) {
+      await session.exporter.cancel().catch(() => {});
+      await fs.rm(session.outputPath, { force: true }).catch(() => {});
+      throw error;
+    } finally {
+      if (ffmpegExportSession?.id === session.id) ffmpegExportSession = null;
+    }
+  });
+
+  ipcMain.handle('export:ffmpeg-cancel', async (_event, input) => {
+    const session = ffmpegExportSession;
+    if (!session || input?.id !== session.id) return { canceled: true };
+    ffmpegExportSession = null;
+    await session.exporter.cancel();
+    await fs.rm(session.outputPath, { force: true }).catch(() => {});
+    return { canceled: true };
+  });
+
   ipcMain.handle('providers:list', async () => (await readProviderStore()).map(publicProvider));
   ipcMain.handle('providers:save', async (_event, input) => {
     if (!input || typeof input !== 'object') throw new Error('Provider configuration is invalid');
@@ -379,5 +470,12 @@ app.whenReady().then(() => {
   });
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+});
+app.on('before-quit', () => {
+  const session = ffmpegExportSession;
+  ffmpegExportSession = null;
+  if (session) {
+    void session.exporter.cancel().catch(() => {}).finally(() => fs.rm(session.outputPath, { force: true }).catch(() => {}));
+  }
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

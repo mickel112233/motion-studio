@@ -103,7 +103,7 @@
 .grade-row input[type=range],.property-row input[type=range]{min-width:0;flex:1;accent-color:#a78bfa}
 .grade-row>span,.property-row>span{min-width:32px;text-align:right;color:#bdb6cf;font-size:10px;font-variant-numeric:tabular-nums}
 
-.export-format-select{max-width:110px;height:30px;padding:0 8px;border:1px solid #373442;border-radius:7px;background:#1b1922;color:#d9d6e4;font:inherit;font-size:11px;outline:none}
+.export-runtime-note{color:#918ca2;font-size:10px;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis}.export-format-select{max-width:110px;height:30px;padding:0 8px;border:1px solid #373442;border-radius:7px;background:#1b1922;color:#d9d6e4;font:inherit;font-size:11px;outline:none}
 .export-format-select:focus{border-color:#8e79bd}
 .export-format-select:disabled{opacity:.6}
 
