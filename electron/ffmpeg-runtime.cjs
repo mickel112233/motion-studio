@@ -24,7 +24,7 @@ function candidatePaths({ platform = process.platform, resourcesPath = process.r
   return [...new Set(candidates)];
 }
 
-async function probeAudioStream({ ffmpegPath, filePath, platform = process.platform, env = process.env, existsSync = fs.existsSync, spawnImpl = spawn } = {}) {
+async function probeAudioStream({ ffmpegPath, filePath, platform = process.platform, env = process.env, existsSync = fs.existsSync, spawnImpl = spawn, timeoutMs = 3000 } = {}) {
   if (typeof ffmpegPath !== 'string' || !ffmpegPath || typeof filePath !== 'string' || !filePath) return false;
   const pathApi = platform === 'win32' ? path.win32 : path.posix;
   const probeName = platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
@@ -44,9 +44,9 @@ async function probeAudioStream({ ffmpegPath, filePath, platform = process.platf
         resolve(value);
       };
       const timeout = setTimeout(() => {
-        child?.kill();
+        try { child?.kill(); } catch { /* The probe is already exiting; still settle the timeout. */ }
         finish(false);
-      }, 3000);
+      }, Math.max(1, Number.isFinite(timeoutMs) ? timeoutMs : 3000));
       try {
         child = spawnImpl(executable, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=index', '-of', 'csv=p=0', filePath], {
           windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'], shell: false
