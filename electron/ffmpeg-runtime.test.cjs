@@ -86,6 +86,27 @@ test('detects embedded audio streams asynchronously with a sibling ffprobe and n
   assert.equal(calls[0].options.shell, false);
 });
 
+
+test('settles a hung ffprobe process after the timeout and attempts to kill it', async () => {
+  let killed = 0;
+  const result = await probeAudioStream({
+    ffmpegPath: '/tools/ffmpeg',
+    filePath: '/media/slow.mp4',
+    platform: 'linux',
+    env: { PATH: '' },
+    existsSync: candidate => candidate === '/tools/ffprobe',
+    timeoutMs: 10,
+    spawnImpl: () => {
+      const child = new EventEmitter();
+      child.stdout = new PassThrough();
+      child.kill = () => { killed += 1; return true; };
+      return child;
+    }
+  });
+  assert.equal(result, false);
+  assert.equal(killed, 1);
+});
+
 test('skips embedded audio when ffprobe is missing or the source has no audio stream', async () => {
   assert.equal(await probeAudioStream({ ffmpegPath: '/tools/ffmpeg', filePath: '/media/silent.mp4', platform: 'linux', env: { PATH: '' }, existsSync: () => false }), false);
   assert.equal(await probeAudioStream({
