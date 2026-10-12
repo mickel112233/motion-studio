@@ -13,10 +13,13 @@ function validateExportSpec({ width, height, fps }) {
 }
 
 function normalizeAudioClips(audioClips, duration) {
+  if (!Number.isFinite(duration) || duration <= 0 || duration > 120) {
+    throw new Error('Audio mix duration must be greater than 0 and at most 120 seconds');
+  }
   if (!Array.isArray(audioClips)) return [];
   if (audioClips.length > 32) throw new Error('MP4 export supports up to 32 audio clips per render');
   return audioClips.map((clip, index) => {
-    if (!clip || typeof clip.path !== 'string' || !clip.path) throw new Error('Audio clip path is missing');
+    if (!clip || typeof clip.path !== 'string' || !clip.path || clip.path.includes('\0')) throw new Error('Audio clip path is missing or invalid');
     const start = Number(clip.start);
     const clipDuration = Number(clip.duration);
     const volume = Number(clip.volume ?? 100);
