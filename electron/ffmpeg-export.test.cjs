@@ -75,6 +75,10 @@ test('builds a synchronized audio mix with volume, fades, and timeline offsets',
 
 test('rejects malformed or excessive audio clips and invalid export duration', () => {
   assert.throws(() => normalizeAudioClips([{ path: '/a.wav', start: -1, duration: 2, volume: 50 }], 10), /invalid timing/);
+  assert.throws(() => normalizeAudioClips([], Number.NaN), /Audio mix duration/);
+  assert.throws(() => normalizeAudioClips([], 0), /Audio mix duration/);
+  assert.throws(() => normalizeAudioClips([], 121), /Audio mix duration/);
+  assert.throws(() => normalizeAudioClips([{ path: '/bad\0path.wav', start: 0, duration: 1 }], 10), /path is missing or invalid/);
   assert.throws(() => normalizeAudioClips(Array.from({ length: 33 }, (_, i) => ({ path: '/' + i, start: 0, duration: 1, volume: 100 })), 10), /32 audio clips/);
   assert.throws(() => createFfmpegFrameExporter({ executable: 'ffmpeg', outputPath: '/tmp/out.mp4', width: 16, height: 16, fps: 24 }), /duration/);
 });
